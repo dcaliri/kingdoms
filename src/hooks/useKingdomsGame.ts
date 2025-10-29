@@ -21,12 +21,13 @@ export const useKingdomsGame = () => {
   const [selectedCastle, setSelectedCastle] = useState<Castle | undefined>();
   const [selectedTile, setSelectedTile] = useState<Tile | undefined>();
   const [hasSelectedStartingTile, setHasSelectedStartingTile] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
 
   const updateGameState = useCallback(async (newGameState: GameState) => {
     console.log('Updating game state:', newGameState);
     console.log('Current player will be:', newGameState.players[newGameState.currentPlayerIndex]?.name);
     
-    // Update local state immediately for the player making the move
+    // Update local state immediately
     setGameState(newGameState);
     
     if (roomId) {
@@ -44,62 +45,100 @@ export const useKingdomsGame = () => {
     console.log('Initializing game from room:', { room, playerId });
     setCurrentPlayerId(playerId);
     setRoomId(room.id);
+    setIsInitializing(true);
 
-    // Try to load existing game state first
-    const existingGameState = await loadGameState(room.id);
-    if (existingGameState) {
-      console.log('Loading existing game state:', existingGameState);
-      console.log('Current player in existing game:', existingGameState.players[existingGameState.currentPlayerIndex]?.name);
-      setGameState(existingGameState);
-      toast.success('Game resumed!');
-      return;
-    }
-
-    // Create new game state - only the first player (host) should do this
-    const isHost = room.players.find(p => p.id === playerId)?.isHost;
-    if (!isHost) {
-      console.log('Not host, waiting for game state from host...');
-      return;
-    }
-
-    console.log('Host initializing new game...');
-    const players: Player[] = room.players.map((roomPlayer) => ({
-      id: roomPlayer.id,
-      name: roomPlayer.name,
-      color: roomPlayer.color!,
-      gold: 50,
-      castles: createInitialCastles(roomPlayer.color!, room.players.length)
-    }));
-
-    const tiles = shuffleArray(createInitialTiles());
-    
-    // Give each player a starting tile
-    players.forEach(player => {
-      if (tiles.length > 0) {
-        player.startingTile = tiles.pop();
+    try {
+      // Try to load existing game state first
+      const existingGameState = await loadGameState(room.id);
+      if (existingGameState) {
+        console.log('Loading existing game state:', existingGameState);
+        console.log('Current player in existing game:', existingGameState.players[existingGameState.currentPlayerIndex]?.name);
+        setGameState(existingGameState);
+        setIsInitializing(false);
+        toast.success('Game resumed!');
+        return;
       }
-    });
 
-    const initialGameState: GameState = {
-      id: `game-${Date.now()}`,
-      players,
-      currentPlayerIndex: 0, // Always start with first player
-      epoch: 1,
-      board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
-      tileSupply: tiles,
-      gamePhase: 'playing',
-      scores: {}
-    };
+      // Check if this player is the host
+      const isHost = room.players.find(p => p.id === playerId)?.isHost;
+      
+      if (isHost) {
+        console.log('Host initializing new game...');
+        
+        const players: Player[] = room.players.map((roomPlayer) => ({
+          id: roomPlayer.id,
+          name: roomPlayer.name,
+          color: roomPlayer.color!,
+          gold: 50,
+          castles: createInitialCastles(roomPlayer.color!, room.players.length)
+        }));
 
-    console.log('Initial game state created:', initialGameState);
-    console.log('Starting player:', initialGameState.players[0]?.name);
+        const tiles = shuffleArray(createInitialTiles());
+        
+        // Give each player a starting tile
+        players.forEach(player => {
+          if (tiles.length > 0) {
+            player.startingTile = tiles.pop();
+          }
+        });
 
-    await updateGameState(initialGameState);
-    setSelectedCastle(undefined);
-    setSelectedTile(undefined);
-    setHasSelectedStartingTile(false);
-    
-    toast.success('Game started!');
+        const initialGameState: GameState = {
+          id: `game-${Date.now()}`,
+          players,
+          currentPlayerIndex: 0, // Always start with first player
+          epoch: 1,
+          board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
+          tileSupply: tiles,
+          gamePhase: 'playing',
+          scores: {}
+        };
+
+        console.log('Initial game state created:', initialGameState);
+        console.log('Starting player:', initialGameState.players[0]?.name);
+
+        await updateGameState(initialGameState);
+        setSelectedCastle(undefined);
+        setSelectedTile(undefined);
+        setHasSelectedStartingTile(false);
+        setIsInitializing(false);
+        
+        toast.success('Game started!');
+      } else {
+        console.log('Not host, waiting for game state from host...');
+        // Non-host players will receive the game state via real-time subscription
+        // Set a timeout to check for game state periodically
+        let attempts = 0;
+        const maxAttempts = 30; // 30 seconds
+        
+        const checkForGameState = async () => {
+          attempts++;
+          console.log(`Attempt ${attempts}: Checking for game state...`);
+          
+          const gameState = await loadGameState(room.id);
+          if (gameState) {
+            console.log('Game state found for non-host player:', gameState);
+            setGameState(gameState);
+            setIsInitializing(false);
+            toast.success('Game loaded!');
+            return;
+          }
+          
+          if (attempts < maxAttempts) {
+            setTimeout(checkForGameState, 1000);
+          } else {
+            console.error('Timeout waiting for game state');
+            setIsInitializing(false);
+            toast.error('Failed to load game - please refresh');
+          }
+        };
+        
+        setTimeout(checkForGameState, 1000);
+      }
+    } catch (error) {
+      console.error('Error initializing game:', error);
+      setIsInitializing(false);
+      toast.error('Failed to initialize game');
+    }
   }, [updateGameState]);
 
   // Set up real-time subscription
@@ -114,6 +153,7 @@ export const useKingdomsGame = () => {
         
         // Always update to the received state (this ensures synchronization)
         setGameState(updatedGameState);
+        setIsInitializing(false); // Game state received, no longer initializing
         
         // Clear selections when it's not your turn
         const isMyTurn = updatedGameState.players[updatedGameState.currentPlayerIndex]?.id === currentPlayerId;
@@ -406,6 +446,7 @@ export const useKingdomsGame = () => {
     selectedCastle,
     selectedTile,
     hasSelectedStartingTile,
+    isInitializing,
     initializeGameFromRoom,
     setSelectedCastle,
     drawAndPlaceTile,
