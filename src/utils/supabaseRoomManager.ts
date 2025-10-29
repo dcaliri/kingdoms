@@ -170,7 +170,7 @@ export const setPlayerReady = async (playerId: string, roomCode: string, isReady
   try {
     console.log('Setting player ready:', { playerId, roomCode, isReady });
     
-    // Get room first
+    // Get room first to get room_id
     const { data: roomData, error: roomError } = await supabase
       .from('rooms')
       .select('*')
@@ -185,18 +185,19 @@ export const setPlayerReady = async (playerId: string, roomCode: string, isReady
     console.log('Found room:', roomData);
 
     // Update player ready status
-    const { error: updateError } = await supabase
+    const { data: updateData, error: updateError } = await supabase
       .from('room_players')
       .update({ is_ready: isReady })
       .eq('room_id', roomData.id)
-      .eq('player_id', playerId);
+      .eq('player_id', playerId)
+      .select();
 
     if (updateError) {
       console.error('Error updating player ready status:', updateError);
       throw updateError;
     }
 
-    console.log('Player ready status updated successfully');
+    console.log('Player ready status updated successfully:', updateData);
 
     // Get all players to check if all are ready
     const { data: playersData, error: playersError } = await supabase
@@ -209,26 +210,27 @@ export const setPlayerReady = async (playerId: string, roomCode: string, isReady
       throw playersError;
     }
 
-    console.log('Current players:', playersData);
+    console.log('Current players after update:', playersData);
 
     const allReady = playersData.length >= 2 && playersData.every(p => p.is_ready);
     const newStatus = allReady ? 'ready' : 'waiting';
 
-    console.log('All ready check:', { playerCount: playersData.length, allReady, newStatus });
+    console.log('All ready check:', { playerCount: playersData.length, allReady, newStatus, currentStatus: roomData.status });
 
     // Update room status if needed
     if (roomData.status !== newStatus) {
-      const { error: statusError } = await supabase
+      const { data: statusData, error: statusError } = await supabase
         .from('rooms')
         .update({ status: newStatus })
-        .eq('id', roomData.id);
+        .eq('id', roomData.id)
+        .select();
 
       if (statusError) {
         console.error('Error updating room status:', statusError);
         throw statusError;
       }
 
-      console.log('Room status updated to:', newStatus);
+      console.log('Room status updated to:', newStatus, statusData);
     }
   } catch (error) {
     console.error('Error in setPlayerReady:', error);
@@ -342,46 +344,68 @@ export const leaveRoom = async (playerId: string, roomCode: string): Promise<voi
 export const subscribeToRoom = (roomCode: string, callback: (room: Room | null) => void) => {
   console.log('Setting up subscription for room:', roomCode);
   
-  const channel = supabase
-    .channel(`room-${roomCode}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'rooms',
-        filter: `code=eq.${roomCode.toUpperCase()}`
-      },
-      async (payload) => {
-        console.log('Room table change detected:', payload);
-        const room = await getRoom(roomCode);
-        callback(room);
-      }
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'room_players'
-      },
-      async (payload) => {
-        console.log('Room players table change detected:', payload);
-        // Only update if this change is for our room
-        if (payload.new?.room_id || payload.old?.room_id) {
-          const room = await getRoom(roomCode);
-          if (room) {
-            callback(room);
+  // First get the room ID for proper filtering
+  let roomId: string | null = null;
+  
+  const setupSubscription = async () => {
+    const room = await getRoom(roomCode);
+    if (room) {
+      roomId = room.id;
+      console.log('Got room ID for subscription:', roomId);
+    }
+    
+    const channel = supabase
+      .channel(`room-${roomCode}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rooms',
+          filter: `code=eq.${roomCode.toUpperCase()}`
+        },
+        async (payload) => {
+          console.log('Room table change detected:', payload);
+          const updatedRoom = await getRoom(roomCode);
+          callback(updatedRoom);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'room_players'
+        },
+        async (payload) => {
+          console.log('Room players table change detected:', payload);
+          // Check if this change affects our room
+          const changeRoomId = payload.new?.room_id || payload.old?.room_id;
+          if (changeRoomId === roomId || !roomId) {
+            console.log('Change affects our room, updating...');
+            const updatedRoom = await getRoom(roomCode);
+            if (updatedRoom) {
+              callback(updatedRoom);
+            }
           }
         }
-      }
-    )
-    .subscribe((status) => {
-      console.log('Subscription status:', status);
-    });
+      )
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
+
+    return channel;
+  };
+
+  let channel: any = null;
+  setupSubscription().then(ch => {
+    channel = ch;
+  });
 
   return () => {
     console.log('Unsubscribing from room:', roomCode);
-    supabase.removeChannel(channel);
+    if (channel) {
+      supabase.removeChannel(channel);
+    }
   };
 };

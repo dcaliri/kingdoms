@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Users, Crown, Check, X, Wifi } from 'lucide-react';
+import { Copy, Users, Crown, Check, X, Wifi, RefreshCw } from 'lucide-react';
 import { Room } from '@/types/room';
 import { getRoom, setPlayerReady, startGame, leaveRoom, subscribeToRoom } from '@/utils/supabaseRoomManager';
 import { toast } from 'sonner';
@@ -23,6 +23,22 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   const [room, setRoom] = useState<Room | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
+
+  const refreshRoom = useCallback(async () => {
+    try {
+      console.log('Manually refreshing room data...');
+      const currentRoom = await getRoom(roomCode);
+      console.log('Manual refresh result:', currentRoom);
+      if (currentRoom) {
+        setRoom(currentRoom);
+        setLastUpdate(Date.now());
+      }
+    } catch (error) {
+      console.error('Error refreshing room:', error);
+      toast.error('Failed to refresh room');
+    }
+  }, [roomCode]);
 
   useEffect(() => {
     console.log('GameLobby mounted with:', { roomCode, playerId });
@@ -35,6 +51,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
         console.log('Initial room data:', currentRoom);
         if (currentRoom) {
           setRoom(currentRoom);
+          setLastUpdate(Date.now());
         }
       } catch (error) {
         console.error('Error loading room:', error);
@@ -46,9 +63,10 @@ const GameLobby: React.FC<GameLobbyProps> = ({
 
     // Set up real-time subscription
     const unsubscribe = subscribeToRoom(roomCode, (updatedRoom) => {
-      console.log('Received room update:', updatedRoom);
+      console.log('Received room update via subscription:', updatedRoom);
       if (updatedRoom) {
         setRoom(updatedRoom);
+        setLastUpdate(Date.now());
         
         // Check if game started
         if (updatedRoom.status === 'playing') {
@@ -64,12 +82,16 @@ const GameLobby: React.FC<GameLobbyProps> = ({
       setIsConnected(navigator.onLine);
     }, 5000);
 
+    // Auto-refresh every 10 seconds as backup
+    const autoRefreshInterval = setInterval(refreshRoom, 10000);
+
     return () => {
       console.log('GameLobby unmounting, cleaning up...');
       unsubscribe();
       clearInterval(connectionInterval);
+      clearInterval(autoRefreshInterval);
     };
-  }, [roomCode, playerId, onGameStart]);
+  }, [roomCode, playerId, onGameStart, refreshRoom]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(roomCode);
@@ -92,6 +114,9 @@ const GameLobby: React.FC<GameLobbyProps> = ({
     try {
       await setPlayerReady(playerId, roomCode, newReadyState);
       toast.success(newReadyState ? 'You are ready!' : 'Ready status removed');
+      
+      // Force refresh after a short delay to ensure we get the updated state
+      setTimeout(refreshRoom, 1000);
     } catch (error) {
       toast.error('Failed to update ready status');
       console.error('Ready toggle error:', error);
@@ -173,11 +198,22 @@ const GameLobby: React.FC<GameLobbyProps> = ({
               >
                 <Copy className="h-4 w-4" />
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refreshRoom}
+                title="Refresh room"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
             </div>
             <div className="flex items-center justify-center gap-2 mt-2">
               <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-500' : 'text-red-500'}`} />
               <span className={`text-xs ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
                 {isConnected ? 'Connected' : 'Connection lost'}
+              </span>
+              <span className="text-xs text-gray-400">
+                • Updated {Math.floor((Date.now() - lastUpdate) / 1000)}s ago
               </span>
             </div>
           </CardHeader>
@@ -243,6 +279,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
               ) : (
                 <p className="text-gray-600">Waiting for all players to be ready...</p>
               )}
+              <p className="text-xs text-gray-500 mt-1">Room status: {room.status}</p>
             </div>
 
             {/* Action Buttons */}
