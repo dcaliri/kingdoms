@@ -25,9 +25,9 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const updateRoom = async () => {
+    const updateRoom = () => {
       try {
-        const currentRoom = await getRoom(roomCode);
+        const currentRoom = getRoom(roomCode);
         if (currentRoom) {
           setRoom(currentRoom);
           const currentPlayer = currentRoom.players.find(p => p.id === playerId);
@@ -51,13 +51,13 @@ const GameLobby: React.FC<GameLobbyProps> = ({
     toast.success('Room code copied to clipboard!');
   };
 
-  const handleToggleReady = async () => {
+  const handleToggleReady = () => {
     if (isLoading) return;
     
     setIsLoading(true);
     try {
       const newReadyState = !isReady;
-      const updatedRoom = await setPlayerReady(playerId, newReadyState);
+      const updatedRoom = setPlayerReady(playerId, newReadyState);
       if (updatedRoom) {
         setRoom(updatedRoom);
         setIsReady(newReadyState);
@@ -71,12 +71,12 @@ const GameLobby: React.FC<GameLobbyProps> = ({
     }
   };
 
-  const handleStartGame = async () => {
+  const handleStartGame = () => {
     if (isLoading) return;
     
     setIsLoading(true);
     try {
-      const updatedRoom = await startGame(playerId);
+      const updatedRoom = startGame(playerId);
       if (updatedRoom) {
         toast.success('Game starting!');
         onGameStart(updatedRoom);
@@ -91,12 +91,12 @@ const GameLobby: React.FC<GameLobbyProps> = ({
     }
   };
 
-  const handleLeaveRoom = async () => {
+  const handleLeaveRoom = () => {
     if (isLoading) return;
     
     setIsLoading(true);
     try {
-      await leaveRoom(playerId);
+      leaveRoom(playerId);
       onLeaveRoom();
       toast.info('Left the room');
     } catch (error) {

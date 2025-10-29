@@ -17,7 +17,7 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
   const [roomCode, setRoomCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleCreateRoom = async () => {
+  const handleCreateRoom = () => {
     if (!playerName.trim()) {
       toast.error('Please enter your name');
       return;
@@ -25,7 +25,7 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
 
     setIsLoading(true);
     try {
-      const { room, playerId } = await createRoom(playerName.trim());
+      const { room, playerId } = createRoom(playerName.trim());
       toast.success(`Room created! Code: ${room.code}`);
       onRoomJoined(room.code, playerId);
     } catch (error) {
@@ -36,7 +36,7 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
     }
   };
 
-  const handleJoinRoom = async () => {
+  const handleJoinRoom = () => {
     if (!playerName.trim()) {
       toast.error('Please enter your name');
       return;
@@ -49,7 +49,7 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
 
     setIsLoading(true);
     try {
-      const result = await joinRoom(roomCode.trim(), playerName.trim());
+      const result = joinRoom(roomCode.trim(), playerName.trim());
       if (result) {
         toast.success('Joined room successfully!');
         onRoomJoined(result.room.code, result.playerId);

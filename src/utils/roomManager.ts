@@ -1,32 +1,79 @@
 import { Room, RoomPlayer, PlayerSession } from '@/types/room';
 
-// Simple shared storage using JSONBin.io (free service for testing)
-const JSONBIN_BASE_URL = 'https://api.jsonbin.io/v3';
-const JSONBIN_API_KEY = '$2a$10$8K9Z8K9Z8K9Z8K9Z8K9Z8K'; // Public test key
-const ROOMS_BIN_ID = '676b8e8bad19ca34f8c8f123'; // Shared bin for all rooms
-
-// Fallback to localStorage for offline functionality
-const ROOMS_KEY = 'kingdoms_rooms_fallback';
+// Use localStorage with detailed logging
+const ROOMS_KEY = 'kingdoms_rooms';
 const SESSIONS_KEY = 'kingdoms_sessions';
 
-// In-memory cache to reduce API calls
-let roomsCache: Map<string, Room> = new Map();
-let lastCacheUpdate = 0;
-const CACHE_DURATION = 2000; // 2 seconds
+// Add detailed logging
+const log = (message: string, data?: any) => {
+  console.log(`[RoomManager] ${message}`, data || '');
+};
+
+const logError = (message: string, error?: any) => {
+  console.error(`[RoomManager ERROR] ${message}`, error || '');
+};
+
+const getRooms = (): Map<string, Room> => {
+  try {
+    log('Getting rooms from localStorage...');
+    const stored = localStorage.getItem(ROOMS_KEY);
+    log('Raw localStorage data:', stored);
+    
+    if (stored) {
+      const data = JSON.parse(stored);
+      log('Parsed room data:', data);
+      
+      const rooms = new Map<string, Room>();
+      Object.entries(data).forEach(([key, value]) => {
+        rooms.set(key, value as Room);
+      });
+      
+      log(`Loaded ${rooms.size} rooms:`, Array.from(rooms.keys()));
+      return rooms;
+    } else {
+      log('No rooms found in localStorage');
+    }
+  } catch (error) {
+    logError('Error loading rooms:', error);
+  }
+  return new Map<string, Room>();
+};
+
+const saveRooms = (rooms: Map<string, Room>) => {
+  try {
+    const data = Object.fromEntries(rooms);
+    log('Saving rooms to localStorage:', data);
+    
+    localStorage.setItem(ROOMS_KEY, JSON.stringify(data));
+    
+    // Broadcast to other tabs/windows
+    log('Broadcasting room update to other tabs...');
+    window.dispatchEvent(new CustomEvent('roomsUpdated', { 
+      detail: { rooms: data, timestamp: Date.now() }
+    }));
+    
+    log('Rooms saved successfully');
+  } catch (error) {
+    logError('Error saving rooms:', error);
+  }
+};
 
 const getSessions = (): Map<string, PlayerSession> => {
   try {
+    log('Getting sessions from localStorage...');
     const stored = localStorage.getItem(SESSIONS_KEY);
+    
     if (stored) {
       const data = JSON.parse(stored);
       const sessions = new Map<string, PlayerSession>();
       Object.entries(data).forEach(([key, value]) => {
         sessions.set(key, value as PlayerSession);
       });
+      log(`Loaded ${sessions.size} sessions`);
       return sessions;
     }
   } catch (error) {
-    console.error('Error loading sessions:', error);
+    logError('Error loading sessions:', error);
   }
   return new Map<string, PlayerSession>();
 };
@@ -35,95 +82,44 @@ const saveSessions = (sessions: Map<string, PlayerSession>) => {
   try {
     const data = Object.fromEntries(sessions);
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(data));
+    log('Sessions saved successfully');
   } catch (error) {
-    console.error('Error saving sessions:', error);
-  }
-};
-
-const getRoomsFromServer = async (): Promise<Map<string, Room>> => {
-  try {
-    // Use cache if recent
-    const now = Date.now();
-    if (now - lastCacheUpdate < CACHE_DURATION && roomsCache.size > 0) {
-      return roomsCache;
-    }
-
-    // Simple fetch without authentication for testing
-    const response = await fetch('https://httpbin.org/json');
-    
-    // For now, use localStorage as fallback since we need a simple solution
-    const stored = localStorage.getItem(ROOMS_KEY);
-    const rooms = new Map<string, Room>();
-    
-    if (stored) {
-      const data = JSON.parse(stored);
-      Object.entries(data).forEach(([key, value]) => {
-        rooms.set(key, value as Room);
-      });
-    }
-    
-    roomsCache = rooms;
-    lastCacheUpdate = now;
-    return rooms;
-  } catch (error) {
-    console.error('Error fetching rooms:', error);
-    // Fallback to localStorage
-    const stored = localStorage.getItem(ROOMS_KEY);
-    const rooms = new Map<string, Room>();
-    
-    if (stored) {
-      const data = JSON.parse(stored);
-      Object.entries(data).forEach(([key, value]) => {
-        rooms.set(key, value as Room);
-      });
-    }
-    
-    return rooms;
-  }
-};
-
-const saveRoomsToServer = async (rooms: Map<string, Room>) => {
-  try {
-    // Update cache
-    roomsCache = new Map(rooms);
-    lastCacheUpdate = Date.now();
-    
-    // Save to localStorage as backup
-    const data = Object.fromEntries(rooms);
-    localStorage.setItem(ROOMS_KEY, JSON.stringify(data));
-    
-    // In a real app, you'd save to a server here
-    // For now, we'll use localStorage with a broadcast event
-    window.dispatchEvent(new CustomEvent('roomsUpdated', { detail: data }));
-    
-  } catch (error) {
-    console.error('Error saving rooms:', error);
+    logError('Error saving sessions:', error);
   }
 };
 
 // Listen for room updates from other tabs
 if (typeof window !== 'undefined') {
+  log('Setting up cross-tab communication listener...');
+  
   window.addEventListener('roomsUpdated', (event: any) => {
-    const data = event.detail;
-    const rooms = new Map<string, Room>();
-    Object.entries(data).forEach(([key, value]) => {
-      rooms.set(key, value as Room);
-    });
-    roomsCache = rooms;
-    lastCacheUpdate = Date.now();
+    log('Received room update from another tab:', event.detail);
+  });
+  
+  // Also listen for storage events (more reliable cross-tab communication)
+  window.addEventListener('storage', (event) => {
+    if (event.key === ROOMS_KEY) {
+      log('Storage event detected for rooms:', event.newValue);
+    }
   });
 }
 
 export const generateRoomCode = (): string => {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  log('Generated room code:', code);
+  return code;
 };
 
 export const generatePlayerId = (): string => {
-  return `player-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const id = `player-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  log('Generated player ID:', id);
+  return id;
 };
 
-export const createRoom = async (hostName: string): Promise<{ room: Room; playerId: string }> => {
-  const rooms = await getRoomsFromServer();
+export const createRoom = (hostName: string): { room: Room; playerId: string } => {
+  log('Creating room for host:', hostName);
+  
+  const rooms = getRooms();
   const sessions = getSessions();
   
   const roomCode = generateRoomCode();
@@ -151,35 +147,52 @@ export const createRoom = async (hostName: string): Promise<{ room: Room; player
     isHost: true
   };
 
+  log('Created room object:', room);
+  log('Created session object:', session);
+
   rooms.set(roomCode, room);
   sessions.set(playerId, session);
   
-  await saveRoomsToServer(rooms);
+  saveRooms(rooms);
   saveSessions(sessions);
 
+  log('Room created successfully with code:', roomCode);
   return { room, playerId };
 };
 
-export const joinRoom = async (roomCode: string, playerName: string): Promise<{ room: Room; playerId: string } | null> => {
-  const rooms = await getRoomsFromServer();
+export const joinRoom = (roomCode: string, playerName: string): { room: Room; playerId: string } => {
+  log('Attempting to join room:', { roomCode, playerName });
+  
+  const rooms = getRooms();
   const sessions = getSessions();
   
+  log('Available rooms:', Array.from(rooms.keys()));
+  
   const room = rooms.get(roomCode.toUpperCase());
+  log('Found room for code', roomCode.toUpperCase(), ':', room);
   
   if (!room) {
+    logError('Room not found for code:', roomCode.toUpperCase());
+    logError('Available room codes:', Array.from(rooms.keys()));
     throw new Error('Room not found');
   }
 
   if (room.players.length >= room.maxPlayers) {
+    logError('Room is full:', room.players.length, '/', room.maxPlayers);
     throw new Error('Room is full');
   }
 
   if (room.status !== 'waiting') {
+    logError('Game already started, room status:', room.status);
     throw new Error('Game already started');
   }
 
   // Check if name is already taken
-  if (room.players.some(p => p.name.toLowerCase() === playerName.toLowerCase())) {
+  const existingNames = room.players.map(p => p.name.toLowerCase());
+  log('Existing player names:', existingNames);
+  
+  if (existingNames.includes(playerName.toLowerCase())) {
+    logError('Player name already taken:', playerName);
     throw new Error('Player name already taken');
   }
 
@@ -191,6 +204,7 @@ export const joinRoom = async (roomCode: string, playerName: string): Promise<{ 
     isReady: false
   };
 
+  log('Adding new player:', newPlayer);
   room.players.push(newPlayer);
 
   const session: PlayerSession = {
@@ -203,39 +217,60 @@ export const joinRoom = async (roomCode: string, playerName: string): Promise<{ 
   rooms.set(roomCode.toUpperCase(), room);
   sessions.set(playerId, session);
   
-  await saveRoomsToServer(rooms);
+  saveRooms(rooms);
   saveSessions(sessions);
 
+  log('Successfully joined room:', roomCode);
   return { room, playerId };
 };
 
-export const getRoom = async (roomCode: string): Promise<Room | null> => {
-  const rooms = await getRoomsFromServer();
-  return rooms.get(roomCode.toUpperCase()) || null;
+export const getRoom = (roomCode: string): Room | null => {
+  log('Getting room for code:', roomCode);
+  const rooms = getRooms();
+  const room = rooms.get(roomCode.toUpperCase()) || null;
+  log('Retrieved room:', room);
+  return room;
 };
 
 export const getPlayerSession = (playerId: string): PlayerSession | null => {
+  log('Getting session for player:', playerId);
   const sessions = getSessions();
-  return sessions.get(playerId) || null;
+  const session = sessions.get(playerId) || null;
+  log('Retrieved session:', session);
+  return session;
 };
 
-export const setPlayerReady = async (playerId: string, isReady: boolean): Promise<Room | null> => {
-  const rooms = await getRoomsFromServer();
+export const setPlayerReady = (playerId: string, isReady: boolean): Room | null => {
+  log('Setting player ready status:', { playerId, isReady });
+  
+  const rooms = getRooms();
   const sessions = getSessions();
   
   const session = sessions.get(playerId);
-  if (!session || !session.roomCode) return null;
+  if (!session || !session.roomCode) {
+    logError('No session found for player:', playerId);
+    return null;
+  }
 
   const room = rooms.get(session.roomCode);
-  if (!room) return null;
+  if (!room) {
+    logError('No room found for code:', session.roomCode);
+    return null;
+  }
 
   const player = room.players.find(p => p.id === playerId);
-  if (!player) return null;
+  if (!player) {
+    logError('Player not found in room:', playerId);
+    return null;
+  }
 
   player.isReady = isReady;
+  log('Updated player ready status:', player);
 
   // Check if all players are ready
   const allReady = room.players.length >= 2 && room.players.every(p => p.isReady);
+  log('All players ready check:', { playerCount: room.players.length, allReady });
+  
   if (allReady) {
     room.status = 'ready';
   } else {
@@ -243,20 +278,29 @@ export const setPlayerReady = async (playerId: string, isReady: boolean): Promis
   }
 
   rooms.set(session.roomCode, room);
-  await saveRoomsToServer(rooms);
+  saveRooms(rooms);
 
+  log('Room status updated:', room.status);
   return room;
 };
 
-export const startGame = async (hostId: string): Promise<Room | null> => {
-  const rooms = await getRoomsFromServer();
+export const startGame = (hostId: string): Room | null => {
+  log('Starting game for host:', hostId);
+  
+  const rooms = getRooms();
   const sessions = getSessions();
   
   const session = sessions.get(hostId);
-  if (!session || !session.isHost || !session.roomCode) return null;
+  if (!session || !session.isHost || !session.roomCode) {
+    logError('Invalid host session:', session);
+    return null;
+  }
 
   const room = rooms.get(session.roomCode);
-  if (!room || room.status !== 'ready') return null;
+  if (!room || room.status !== 'ready') {
+    logError('Cannot start game, room status:', room?.status);
+    return null;
+  }
 
   // Assign colors to players
   const colors: ('red' | 'blue' | 'yellow' | 'green')[] = ['red', 'blue', 'yellow', 'green'];
@@ -265,25 +309,36 @@ export const startGame = async (hostId: string): Promise<Room | null> => {
   });
 
   room.status = 'playing';
+  log('Game started, room status:', room.status);
   
   rooms.set(session.roomCode, room);
-  await saveRoomsToServer(rooms);
+  saveRooms(rooms);
   
   return room;
 };
 
-export const leaveRoom = async (playerId: string): Promise<void> => {
-  const rooms = await getRoomsFromServer();
+export const leaveRoom = (playerId: string): void => {
+  log('Player leaving room:', playerId);
+  
+  const rooms = getRooms();
   const sessions = getSessions();
   
   const session = sessions.get(playerId);
-  if (!session || !session.roomCode) return;
+  if (!session || !session.roomCode) {
+    logError('No session found for leaving player:', playerId);
+    return;
+  }
 
   const room = rooms.get(session.roomCode);
-  if (!room) return;
+  if (!room) {
+    logError('No room found for leaving player:', session.roomCode);
+    return;
+  }
 
   // Remove player from room
+  const originalPlayerCount = room.players.length;
   room.players = room.players.filter(p => p.id !== playerId);
+  log('Removed player from room:', { originalCount: originalPlayerCount, newCount: room.players.length });
 
   // If host left, make another player host
   if (session.isHost && room.players.length > 0) {
@@ -293,26 +348,31 @@ export const leaveRoom = async (playerId: string): Promise<void> => {
     if (newHostSession) {
       newHostSession.isHost = true;
       sessions.set(room.players[0].id, newHostSession);
-      saveSessions(sessions);
     }
+    log('Transferred host to:', room.players[0].name);
   }
 
   // Delete room if empty
   if (room.players.length === 0) {
     rooms.delete(session.roomCode);
+    log('Deleted empty room:', session.roomCode);
   } else {
     rooms.set(session.roomCode, room);
+    log('Updated room after player left');
   }
 
   sessions.delete(playerId);
   
-  await saveRoomsToServer(rooms);
+  saveRooms(rooms);
   saveSessions(sessions);
+  
+  log('Player successfully left room');
 };
 
 // Clean up old rooms
-export const cleanupOldRooms = async (): Promise<void> => {
-  const rooms = await getRoomsFromServer();
+export const cleanupOldRooms = (): void => {
+  log('Cleaning up old rooms...');
+  const rooms = getRooms();
   const now = new Date();
   const maxAge = 24 * 60 * 60 * 1000; // 24 hours
   
@@ -320,12 +380,16 @@ export const cleanupOldRooms = async (): Promise<void> => {
   rooms.forEach((room, code) => {
     const roomAge = now.getTime() - new Date(room.createdAt).getTime();
     if (roomAge > maxAge) {
+      log('Removing old room:', code);
       rooms.delete(code);
       hasChanges = true;
     }
   });
   
   if (hasChanges) {
-    await saveRoomsToServer(rooms);
+    saveRooms(rooms);
+    log('Cleanup completed');
+  } else {
+    log('No old rooms to clean up');
   }
 };
