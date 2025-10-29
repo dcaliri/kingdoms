@@ -166,16 +166,23 @@ export const getRoom = async (roomCode: string): Promise<Room | null> => {
   }
 };
 
-export const setPlayerReady = async (playerId: string, roomCode: string, isReady: boolean): Promise<Room | null> => {
+export const setPlayerReady = async (playerId: string, roomCode: string, isReady: boolean): Promise<void> => {
   try {
-    // Get room
+    console.log('Setting player ready:', { playerId, roomCode, isReady });
+    
+    // Get room first
     const { data: roomData, error: roomError } = await supabase
       .from('rooms')
       .select('*')
       .eq('code', roomCode.toUpperCase())
       .single();
 
-    if (roomError || !roomData) throw new Error('Room not found');
+    if (roomError || !roomData) {
+      console.error('Room not found:', roomError);
+      throw new Error('Room not found');
+    }
+
+    console.log('Found room:', roomData);
 
     // Update player ready status
     const { error: updateError } = await supabase
@@ -184,18 +191,30 @@ export const setPlayerReady = async (playerId: string, roomCode: string, isReady
       .eq('room_id', roomData.id)
       .eq('player_id', playerId);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('Error updating player ready status:', updateError);
+      throw updateError;
+    }
 
-    // Check if all players are ready
+    console.log('Player ready status updated successfully');
+
+    // Get all players to check if all are ready
     const { data: playersData, error: playersError } = await supabase
       .from('room_players')
       .select('*')
       .eq('room_id', roomData.id);
 
-    if (playersError) throw playersError;
+    if (playersError) {
+      console.error('Error getting players:', playersError);
+      throw playersError;
+    }
+
+    console.log('Current players:', playersData);
 
     const allReady = playersData.length >= 2 && playersData.every(p => p.is_ready);
     const newStatus = allReady ? 'ready' : 'waiting';
+
+    console.log('All ready check:', { playerCount: playersData.length, allReady, newStatus });
 
     // Update room status if needed
     if (roomData.status !== newStatus) {
@@ -204,12 +223,15 @@ export const setPlayerReady = async (playerId: string, roomCode: string, isReady
         .update({ status: newStatus })
         .eq('id', roomData.id);
 
-      if (statusError) throw statusError;
-    }
+      if (statusError) {
+        console.error('Error updating room status:', statusError);
+        throw statusError;
+      }
 
-    return await getRoom(roomCode);
+      console.log('Room status updated to:', newStatus);
+    }
   } catch (error) {
-    console.error('Error setting player ready:', error);
+    console.error('Error in setPlayerReady:', error);
     throw error;
   }
 };
@@ -318,6 +340,8 @@ export const leaveRoom = async (playerId: string, roomCode: string): Promise<voi
 
 // Real-time subscription helpers
 export const subscribeToRoom = (roomCode: string, callback: (room: Room | null) => void) => {
+  console.log('Setting up subscription for room:', roomCode);
+  
   const channel = supabase
     .channel(`room-${roomCode}`)
     .on(
@@ -328,7 +352,8 @@ export const subscribeToRoom = (roomCode: string, callback: (room: Room | null) 
         table: 'rooms',
         filter: `code=eq.${roomCode.toUpperCase()}`
       },
-      async () => {
+      async (payload) => {
+        console.log('Room table change detected:', payload);
         const room = await getRoom(roomCode);
         callback(room);
       }
@@ -340,14 +365,23 @@ export const subscribeToRoom = (roomCode: string, callback: (room: Room | null) 
         schema: 'public',
         table: 'room_players'
       },
-      async () => {
-        const room = await getRoom(roomCode);
-        callback(room);
+      async (payload) => {
+        console.log('Room players table change detected:', payload);
+        // Only update if this change is for our room
+        if (payload.new?.room_id || payload.old?.room_id) {
+          const room = await getRoom(roomCode);
+          if (room) {
+            callback(room);
+          }
+        }
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log('Subscription status:', status);
+    });
 
   return () => {
+    console.log('Unsubscribing from room:', roomCode);
     supabase.removeChannel(channel);
   };
 };

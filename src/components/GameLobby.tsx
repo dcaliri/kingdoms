@@ -21,21 +21,20 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   onLeaveRoom 
 }) => {
   const [room, setRoom] = useState<Room | null>(null);
-  const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(true);
 
   useEffect(() => {
+    console.log('GameLobby mounted with:', { roomCode, playerId });
+    
     // Initial room load
     const loadRoom = async () => {
       try {
+        console.log('Loading initial room data...');
         const currentRoom = await getRoom(roomCode);
+        console.log('Initial room data:', currentRoom);
         if (currentRoom) {
           setRoom(currentRoom);
-          const currentPlayer = currentRoom.players.find(p => p.id === playerId);
-          if (currentPlayer) {
-            setIsReady(currentPlayer.isReady);
-          }
         }
       } catch (error) {
         console.error('Error loading room:', error);
@@ -47,15 +46,13 @@ const GameLobby: React.FC<GameLobbyProps> = ({
 
     // Set up real-time subscription
     const unsubscribe = subscribeToRoom(roomCode, (updatedRoom) => {
+      console.log('Received room update:', updatedRoom);
       if (updatedRoom) {
         setRoom(updatedRoom);
-        const currentPlayer = updatedRoom.players.find(p => p.id === playerId);
-        if (currentPlayer) {
-          setIsReady(currentPlayer.isReady);
-        }
         
         // Check if game started
         if (updatedRoom.status === 'playing') {
+          console.log('Game started, transitioning...');
           onGameStart(updatedRoom);
         }
       }
@@ -68,6 +65,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
     }, 5000);
 
     return () => {
+      console.log('GameLobby unmounting, cleaning up...');
       unsubscribe();
       clearInterval(connectionInterval);
     };
@@ -79,11 +77,19 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   };
 
   const handleToggleReady = async () => {
-    if (isLoading) return;
+    if (isLoading || !room) return;
+    
+    const currentPlayer = room.players.find(p => p.id === playerId);
+    if (!currentPlayer) {
+      toast.error('Player not found in room');
+      return;
+    }
+
+    const newReadyState = !currentPlayer.isReady;
+    console.log('Toggling ready state:', { playerId, currentReady: currentPlayer.isReady, newReady: newReadyState });
     
     setIsLoading(true);
     try {
-      const newReadyState = !isReady;
       await setPlayerReady(playerId, roomCode, newReadyState);
       toast.success(newReadyState ? 'You are ready!' : 'Ready status removed');
     } catch (error) {
@@ -140,6 +146,15 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   const isHost = currentPlayer?.isHost || false;
   const canStartGame = room.status === 'ready' && isHost;
   const allPlayersReady = room.players.length >= 2 && room.players.every(p => p.isReady);
+
+  console.log('Render state:', { 
+    currentPlayer, 
+    isHost, 
+    canStartGame, 
+    allPlayersReady, 
+    roomStatus: room.status,
+    players: room.players.map(p => ({ name: p.name, isReady: p.isReady }))
+  });
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -234,13 +249,13 @@ const GameLobby: React.FC<GameLobbyProps> = ({
             <div className="flex gap-3">
               <Button
                 onClick={handleToggleReady}
-                variant={isReady ? "default" : "outline"}
+                variant={currentPlayer?.isReady ? "default" : "outline"}
                 className="flex-1"
                 disabled={isLoading || !isConnected}
               >
                 {isLoading ? (
                   'Updating...'
-                ) : isReady ? (
+                ) : currentPlayer?.isReady ? (
                   <>
                     <Check className="h-4 w-4 mr-2" />
                     Ready!
