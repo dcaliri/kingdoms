@@ -1,0 +1,315 @@
+import { GameState, Player, Castle, Tile, PlayerColor } from '@/types/game';
+
+export const BOARD_ROWS = 5;
+export const BOARD_COLS = 6;
+
+export const createInitialTiles = (): Tile[] => {
+  const tiles: Tile[] = [];
+  
+  // Resource tiles (12 tiles)
+  const resourceTiles = [
+    { name: 'Farm', value: 2 },
+    { name: 'Village', value: 1 },
+    { name: 'Town', value: 3 },
+    { name: 'City', value: 4 },
+    { name: 'Windmill', value: 4 },
+    { name: 'Knight', value: 5 },
+    { name: 'Castle Keep', value: 6 },
+    { name: 'Monastery', value: 2 },
+    { name: 'Market', value: 3 },
+    { name: 'Port', value: 5 },
+    { name: 'Cathedral', value: 6 },
+    { name: 'Palace', value: 6 }
+  ];
+  
+  resourceTiles.forEach((tile, index) => {
+    tiles.push({
+      id: `resource-${index}`,
+      type: 'resource',
+      value: tile.value,
+      name: tile.name
+    });
+  });
+  
+  // Hazard tiles (6 tiles)
+  const hazardTiles = [
+    { name: 'Bandits', value: -1 },
+    { name: 'Dire Wolves', value: -3 },
+    { name: 'Troll', value: -6 },
+    { name: 'Raiders', value: -5 },
+    { name: 'Swamp', value: -2 },
+    { name: 'Cursed Forest', value: -4 }
+  ];
+  
+  hazardTiles.forEach((tile, index) => {
+    tiles.push({
+      id: `hazard-${index}`,
+      type: 'hazard',
+      value: tile.value,
+      name: tile.name
+    });
+  });
+  
+  // Special tiles
+  tiles.push(
+    { id: 'mountain-1', type: 'mountain', value: 0, name: 'Mountain' },
+    { id: 'mountain-2', type: 'mountain', value: 0, name: 'Mountain' },
+    { id: 'dragon', type: 'dragon', value: 0, name: 'Dragon' },
+    { id: 'goldmine', type: 'goldmine', value: 0, name: 'Gold Mine' },
+    { id: 'wizard', type: 'wizard', value: 0, name: 'Wizard' }
+  );
+  
+  return tiles;
+};
+
+export const createInitialCastles = (color: PlayerColor, playerCount: number): Castle[] => {
+  const castles: Castle[] = [];
+  
+  // Rank 1 castles based on player count
+  const rank1Count = playerCount === 2 ? 4 : playerCount === 3 ? 3 : 2;
+  for (let i = 0; i < rank1Count; i++) {
+    castles.push({
+      id: `${color}-rank1-${i}`,
+      rank: 1,
+      color
+    });
+  }
+  
+  // Rank 2, 3, 4 castles (always all of them)
+  for (let i = 0; i < 3; i++) {
+    castles.push({
+      id: `${color}-rank2-${i}`,
+      rank: 2,
+      color
+    });
+  }
+  
+  for (let i = 0; i < 2; i++) {
+    castles.push({
+      id: `${color}-rank3-${i}`,
+      rank: 3,
+      color
+    });
+  }
+  
+  castles.push({
+    id: `${color}-rank4-0`,
+    rank: 4,
+    color
+  });
+  
+  return castles;
+};
+
+export const shuffleArray = <T>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
+export const isValidPosition = (row: number, col: number, board: (Castle | Tile | null)[][]): boolean => {
+  return row >= 0 && row < BOARD_ROWS && col >= 0 && col < BOARD_COLS && board[row][col] === null;
+};
+
+export const canPlayerAct = (player: Player, gameState: GameState): boolean => {
+  // Can place castle if has castles and empty spaces exist
+  const hasAvailableCastles = player.castles.some(castle => !castle.position);
+  const hasEmptySpaces = gameState.board.some(row => row.some(cell => cell === null));
+  
+  if (hasAvailableCastles && hasEmptySpaces) return true;
+  
+  // Can draw tile if tiles available and empty spaces exist
+  if (gameState.tileSupply.length > 0 && hasEmptySpaces) return true;
+  
+  // Can place starting tile if has one and empty spaces exist
+  if (player.startingTile && hasEmptySpaces) return true;
+  
+  return false;
+};
+
+export const calculateScore = (gameState: GameState): { [playerId: string]: number } => {
+  const scores: { [playerId: string]: number } = {};
+  
+  gameState.players.forEach(player => {
+    scores[player.id] = 0;
+  });
+  
+  // Score each row
+  for (let row = 0; row < BOARD_ROWS; row++) {
+    const rowScores = calculateRowScore(gameState.board, row);
+    Object.entries(rowScores).forEach(([playerId, score]) => {
+      scores[playerId] += score;
+    });
+  }
+  
+  // Score each column
+  for (let col = 0; col < BOARD_COLS; col++) {
+    const colScores = calculateColumnScore(gameState.board, col);
+    Object.entries(colScores).forEach(([playerId, score]) => {
+      scores[playerId] += score;
+    });
+  }
+  
+  return scores;
+};
+
+const calculateRowScore = (board: (Castle | Tile | null)[][], row: number): { [playerId: string]: number } => {
+  const scores: { [playerId: string]: number } = {};
+  const rowCells = board[row];
+  
+  // Find mountains to split the row
+  const mountainIndices = rowCells
+    .map((cell, index) => cell && 'type' in cell && cell.type === 'mountain' ? index : -1)
+    .filter(index => index !== -1);
+  
+  if (mountainIndices.length === 0) {
+    // Score entire row
+    return calculateSegmentScore(rowCells, board, row, 'row');
+  } else {
+    // Score segments separated by mountains
+    const segments: (Castle | Tile | null)[][] = [];
+    let start = 0;
+    
+    mountainIndices.forEach(mountainIndex => {
+      if (start < mountainIndex) {
+        segments.push(rowCells.slice(start, mountainIndex));
+      }
+      start = mountainIndex + 1;
+    });
+    
+    if (start < rowCells.length) {
+      segments.push(rowCells.slice(start));
+    }
+    
+    segments.forEach(segment => {
+      const segmentScores = calculateSegmentScore(segment, board, row, 'row');
+      Object.entries(segmentScores).forEach(([playerId, score]) => {
+        scores[playerId] = (scores[playerId] || 0) + score;
+      });
+    });
+    
+    return scores;
+  }
+};
+
+const calculateColumnScore = (board: (Castle | Tile | null)[][], col: number): { [playerId: string]: number } => {
+  const scores: { [playerId: string]: number } = {};
+  const colCells = board.map(row => row[col]);
+  
+  // Find mountains to split the column
+  const mountainIndices = colCells
+    .map((cell, index) => cell && 'type' in cell && cell.type === 'mountain' ? index : -1)
+    .filter(index => index !== -1);
+  
+  if (mountainIndices.length === 0) {
+    // Score entire column
+    return calculateSegmentScore(colCells, board, col, 'column');
+  } else {
+    // Score segments separated by mountains
+    const segments: (Castle | Tile | null)[][] = [];
+    let start = 0;
+    
+    mountainIndices.forEach(mountainIndex => {
+      if (start < mountainIndex) {
+        segments.push(colCells.slice(start, mountainIndex));
+      }
+      start = mountainIndex + 1;
+    });
+    
+    if (start < colCells.length) {
+      segments.push(colCells.slice(start));
+    }
+    
+    segments.forEach(segment => {
+      const segmentScores = calculateSegmentScore(segment, board, col, 'column');
+      Object.entries(segmentScores).forEach(([playerId, score]) => {
+        scores[playerId] = (scores[playerId] || 0) + score;
+      });
+    });
+    
+    return scores;
+  }
+};
+
+const calculateSegmentScore = (
+  segment: (Castle | Tile | null)[], 
+  board: (Castle | Tile | null)[][], 
+  lineIndex: number, 
+  lineType: 'row' | 'column'
+): { [playerId: string]: number } => {
+  const scores: { [playerId: string]: number } = {};
+  
+  // Check for dragon - cancels all resource tiles
+  const hasDragon = segment.some(cell => cell && 'type' in cell && cell.type === 'dragon');
+  
+  // Check for gold mine - doubles all tile values
+  const hasGoldMine = segment.some(cell => cell && 'type' in cell && cell.type === 'goldmine');
+  
+  // Calculate base value from tiles
+  let baseValue = 0;
+  segment.forEach(cell => {
+    if (cell && 'type' in cell) {
+      const tile = cell as Tile;
+      if (tile.type === 'resource' && !hasDragon) {
+        baseValue += tile.value;
+      } else if (tile.type === 'hazard') {
+        baseValue += tile.value; // hazard values are negative
+      }
+    }
+  });
+  
+  // Apply gold mine doubling
+  if (hasGoldMine) {
+    baseValue *= 2;
+  }
+  
+  // Calculate castle ranks for each player
+  const playerCastleRanks: { [playerId: string]: number } = {};
+  
+  segment.forEach((cell, segmentIndex) => {
+    if (cell && 'rank' in cell) {
+      const castle = cell as Castle;
+      let effectiveRank = castle.rank;
+      
+      // Check for wizard bonus (orthogonally adjacent)
+      const actualIndex = lineType === 'row' ? segmentIndex : lineIndex;
+      const row = lineType === 'row' ? lineIndex : segmentIndex;
+      const col = lineType === 'row' ? segmentIndex : lineIndex;
+      
+      if (isAdjacentToWizard(board, row, col)) {
+        effectiveRank += 1;
+      }
+      
+      const playerId = castle.color;
+      playerCastleRanks[playerId] = (playerCastleRanks[playerId] || 0) + effectiveRank;
+    }
+  });
+  
+  // Calculate final scores
+  Object.entries(playerCastleRanks).forEach(([playerId, totalRank]) => {
+    scores[playerId] = baseValue * totalRank;
+  });
+  
+  return scores;
+};
+
+const isAdjacentToWizard = (board: (Castle | Tile | null)[][], row: number, col: number): boolean => {
+  const directions = [
+    [-1, 0], [1, 0], [0, -1], [0, 1] // up, down, left, right
+  ];
+  
+  return directions.some(([dr, dc]) => {
+    const newRow = row + dr;
+    const newCol = col + dc;
+    
+    if (newRow >= 0 && newRow < BOARD_ROWS && newCol >= 0 && newCol < BOARD_COLS) {
+      const cell = board[newRow][newCol];
+      return cell && 'type' in cell && (cell as Tile).type === 'wizard';
+    }
+    
+    return false;
+  });
+};
