@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, Player, Castle, Tile, PlayerColor } from '@/types/game';
 import { Room } from '@/types/room';
 import { 
@@ -11,7 +11,7 @@ import {
   BOARD_ROWS,
   BOARD_COLS
 } from '@/utils/gameLogic';
-import { saveGameState, loadGameState, subscribeToGameState, checkGameStateExists } from '@/utils/supabaseGameManager';
+import { saveGameState, loadGameState, subscribeToGameState } from '@/utils/supabaseGameManager';
 import { toast } from 'sonner';
 
 export const useKingdomsGame = () => {
@@ -23,10 +23,13 @@ export const useKingdomsGame = () => {
   const [hasSelectedStartingTile, setHasSelectedStartingTile] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [loadingAttempts, setLoadingAttempts] = useState(0);
+  
+  // Use refs to prevent infinite loops
+  const initializationRef = useRef<boolean>(false);
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const updateGameState = useCallback(async (newGameState: GameState) => {
     console.log('Updating game state:', newGameState);
-    console.log('Current player will be:', newGameState.players[newGameState.currentPlayerIndex]?.name);
     
     // Update local state immediately
     setGameState(newGameState);
@@ -43,47 +46,28 @@ export const useKingdomsGame = () => {
     }
   }, [roomId]);
 
-  const loadGameStateWithRetry = useCallback(async (roomId: string, maxAttempts: number = 20): Promise<GameState | null> => {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      console.log(`Loading attempt ${attempt}/${maxAttempts} for room:`, roomId);
-      setLoadingAttempts(attempt);
-      
-      try {
-        // First check if game state exists
-        const exists = await checkGameStateExists(roomId);
-        console.log(`Attempt ${attempt}: Game state exists:`, exists);
-        
-        if (exists) {
-          const gameState = await loadGameState(roomId);
-          if (gameState) {
-            console.log(`Attempt ${attempt}: Successfully loaded game state:`, gameState);
-            return gameState;
-          }
-        }
-        
-        // Wait before next attempt
-        if (attempt < maxAttempts) {
-          console.log(`Attempt ${attempt}: Waiting 1 second before retry...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      } catch (error) {
-        console.error(`Attempt ${attempt}: Error loading game state:`, error);
-      }
-    }
-    
-    console.error('All loading attempts failed');
-    return null;
-  }, []);
-
   const initializeGameFromRoom = useCallback(async (room: Room, playerId: string) => {
+    // Prevent multiple simultaneous initializations
+    if (initializationRef.current) {
+      console.log('Initialization already in progress, skipping...');
+      return;
+    }
+
     console.log('=== INITIALIZING GAME ===');
     console.log('Room:', room);
     console.log('Player ID:', playerId);
     
+    initializationRef.current = true;
     setCurrentPlayerId(playerId);
     setRoomId(room.id);
     setIsInitializing(true);
     setLoadingAttempts(0);
+
+    // Clear any existing polling timeout
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+    }
 
     try {
       // Check if this player is the host
@@ -124,30 +108,61 @@ export const useKingdomsGame = () => {
 
         console.log('HOST: Created initial game state:', initialGameState);
         await updateGameState(initialGameState);
+        initializationRef.current = false;
         toast.success('Game started!');
       } else {
         console.log('NON-HOST: Waiting for game state...');
         
-        // Non-host waits for game state
-        const gameState = await loadGameStateWithRetry(room.id, 30);
+        // For non-host players, set up polling with a maximum number of attempts
+        let attempts = 0;
+        const maxAttempts = 20; // 20 seconds max
         
-        if (gameState) {
-          console.log('NON-HOST: Successfully loaded game state:', gameState);
-          setGameState(gameState);
-          setIsInitializing(false);
-          toast.success('Game loaded!');
-        } else {
-          console.error('NON-HOST: Failed to load game state after all attempts');
-          setIsInitializing(false);
-          toast.error('Failed to load game. Please try refreshing the page.');
-        }
+        const pollForGameState = async () => {
+          if (!initializationRef.current) {
+            console.log('Initialization cancelled, stopping polling');
+            return;
+          }
+
+          attempts++;
+          setLoadingAttempts(attempts);
+          console.log(`Poll attempt ${attempts}/${maxAttempts}: Checking for game state...`);
+          
+          try {
+            const gameState = await loadGameState(room.id);
+            if (gameState) {
+              console.log('Found game state via polling:', gameState);
+              setGameState(gameState);
+              setIsInitializing(false);
+              initializationRef.current = false;
+              toast.success('Game loaded!');
+              return;
+            }
+          } catch (error) {
+            console.error('Error polling for game state:', error);
+          }
+          
+          if (attempts < maxAttempts && initializationRef.current) {
+            pollingTimeoutRef.current = setTimeout(pollForGameState, 1000);
+          } else {
+            console.error('Polling timeout or cancelled');
+            setIsInitializing(false);
+            initializationRef.current = false;
+            if (attempts >= maxAttempts) {
+              toast.error('Failed to load game. Please try refreshing.');
+            }
+          }
+        };
+        
+        // Start polling after a short delay
+        pollingTimeoutRef.current = setTimeout(pollForGameState, 2000);
       }
     } catch (error) {
       console.error('Error in initializeGameFromRoom:', error);
       setIsInitializing(false);
+      initializationRef.current = false;
       toast.error('Failed to initialize game');
     }
-  }, [updateGameState, loadGameStateWithRetry]);
+  }, [updateGameState]);
 
   // Set up real-time subscription
   useEffect(() => {
@@ -164,6 +179,13 @@ export const useKingdomsGame = () => {
         setGameState(updatedGameState);
         setIsInitializing(false);
         
+        // Stop any ongoing initialization
+        initializationRef.current = false;
+        if (pollingTimeoutRef.current) {
+          clearTimeout(pollingTimeoutRef.current);
+          pollingTimeoutRef.current = null;
+        }
+        
         // Clear selections when it's not your turn
         const isMyTurn = updatedGameState.players[updatedGameState.currentPlayerIndex]?.id === currentPlayerId;
         if (!isMyTurn) {
@@ -174,8 +196,27 @@ export const useKingdomsGame = () => {
       }
     });
 
-    return unsubscribe;
+    return () => {
+      console.log('Cleaning up subscription and polling');
+      unsubscribe();
+      initializationRef.current = false;
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+      }
+    };
   }, [roomId, currentPlayerId]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      initializationRef.current = false;
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const placeCastle = useCallback(async (castle: Castle, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
