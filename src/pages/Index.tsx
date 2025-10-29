@@ -106,23 +106,48 @@ const Index = () => {
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const ownPlayer = gameState.players.find(p => p.id === currentPlayerId);
+  const isMyTurn = currentPlayer?.id === currentPlayerId;
 
   return (
     <div className="min-h-screen bg-gray-100 p-2">
       <div className="max-w-7xl mx-auto">
-        {/* Header - Smaller */}
+        {/* Header - Enhanced with turn status */}
         <div className="text-center mb-3">
           <h1 className="text-2xl font-bold mb-1">Kingdoms</h1>
-          <p className="text-sm text-gray-600">
-            Epoch {gameState.epoch} of 3 • {currentPlayer.name}'s Turn
-          </p>
-          <p className="text-xs text-gray-500">
-            Room: {roomCode} • You are: {ownPlayer?.name}
-          </p>
+          <div className="flex items-center justify-center gap-4 text-sm">
+            <span className="text-gray-600">
+              Epoch {gameState.epoch} of 3
+            </span>
+            <span className="text-gray-400">•</span>
+            <span className="text-gray-600">
+              Room: {roomCode}
+            </span>
+            <span className="text-gray-400">•</span>
+            <span className="text-blue-600">
+              You are: {ownPlayer?.name}
+            </span>
+          </div>
+          
+          {/* Turn Status - More prominent */}
+          <div className={`mt-2 p-3 rounded-lg ${
+            isMyTurn 
+              ? 'bg-green-100 border border-green-300' 
+              : 'bg-gray-100 border border-gray-300'
+          }`}>
+            {isMyTurn ? (
+              <div className="text-green-800 font-semibold">
+                🎯 It's YOUR turn! Make your move.
+              </div>
+            ) : (
+              <div className="text-gray-700">
+                ⏳ Waiting for <span className="font-semibold">{currentPlayer?.name}</span>'s turn
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-          {/* Left Column - Players (Smaller) */}
+          {/* Left Column - Players */}
           <div className="lg:col-span-1 space-y-2">
             {gameState.players.map(player => (
               <PlayerPanel
@@ -138,7 +163,7 @@ const Index = () => {
             ))}
           </div>
 
-          {/* Center Column - Game Board (Bigger) */}
+          {/* Center Column - Game Board */}
           <div className="lg:col-span-2 flex justify-center">
             <div className="w-full max-w-2xl">
               <GameBoard
@@ -150,7 +175,7 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Right Column - Actions and Scores (Smaller) */}
+          {/* Right Column - Actions and Scores */}
           <div className="lg:col-span-1 space-y-3">
             <GameActions
               gameState={gameState}

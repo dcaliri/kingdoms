@@ -24,11 +24,15 @@ export const useKingdomsGame = () => {
 
   const updateGameState = useCallback(async (newGameState: GameState) => {
     console.log('Updating game state:', newGameState);
+    console.log('Current player will be:', newGameState.players[newGameState.currentPlayerIndex]?.name);
+    
+    // Update local state immediately for the player making the move
     setGameState(newGameState);
     
     if (roomId) {
       try {
         await saveGameState(roomId, newGameState);
+        console.log('Game state saved to database successfully');
       } catch (error) {
         console.error('Failed to save game state:', error);
         toast.error('Failed to sync game state');
@@ -45,12 +49,20 @@ export const useKingdomsGame = () => {
     const existingGameState = await loadGameState(room.id);
     if (existingGameState) {
       console.log('Loading existing game state:', existingGameState);
+      console.log('Current player in existing game:', existingGameState.players[existingGameState.currentPlayerIndex]?.name);
       setGameState(existingGameState);
       toast.success('Game resumed!');
       return;
     }
 
-    // Create new game state
+    // Create new game state - only the first player (host) should do this
+    const isHost = room.players.find(p => p.id === playerId)?.isHost;
+    if (!isHost) {
+      console.log('Not host, waiting for game state from host...');
+      return;
+    }
+
+    console.log('Host initializing new game...');
     const players: Player[] = room.players.map((roomPlayer) => ({
       id: roomPlayer.id,
       name: roomPlayer.name,
@@ -71,13 +83,16 @@ export const useKingdomsGame = () => {
     const initialGameState: GameState = {
       id: `game-${Date.now()}`,
       players,
-      currentPlayerIndex: Math.floor(Math.random() * players.length),
+      currentPlayerIndex: 0, // Always start with first player
       epoch: 1,
       board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
       tileSupply: tiles,
       gamePhase: 'playing',
       scores: {}
     };
+
+    console.log('Initial game state created:', initialGameState);
+    console.log('Starting player:', initialGameState.players[0]?.name);
 
     await updateGameState(initialGameState);
     setSelectedCastle(undefined);
@@ -94,13 +109,24 @@ export const useKingdomsGame = () => {
     console.log('Setting up game state subscription for room:', roomId);
     const unsubscribe = subscribeToGameState(roomId, (updatedGameState) => {
       if (updatedGameState) {
-        console.log('Received game state update:', updatedGameState);
+        console.log('Received game state update via subscription:', updatedGameState);
+        console.log('Updated current player:', updatedGameState.players[updatedGameState.currentPlayerIndex]?.name);
+        
+        // Always update to the received state (this ensures synchronization)
         setGameState(updatedGameState);
+        
+        // Clear selections when it's not your turn
+        const isMyTurn = updatedGameState.players[updatedGameState.currentPlayerIndex]?.id === currentPlayerId;
+        if (!isMyTurn) {
+          setSelectedCastle(undefined);
+          setSelectedTile(undefined);
+          setHasSelectedStartingTile(false);
+        }
       }
     });
 
     return unsubscribe;
-  }, [roomId]);
+  }, [roomId, currentPlayerId]);
 
   const placeCastle = useCallback(async (castle: Castle, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
@@ -113,6 +139,8 @@ export const useKingdomsGame = () => {
       toast.error('Not your turn or not your castle');
       return;
     }
+
+    console.log('Placing castle for player:', currentPlayer.name);
 
     const newBoard = gameState.board.map(r => [...r]);
     const updatedCastle = { ...castle, position: { row, col } };
@@ -130,12 +158,17 @@ export const useKingdomsGame = () => {
       return player;
     });
 
+    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+    const nextPlayer = gameState.players[nextPlayerIndex];
+
     const newGameState = {
       ...gameState,
       board: newBoard,
       players: updatedPlayers,
-      currentPlayerIndex: (gameState.currentPlayerIndex + 1) % gameState.players.length
+      currentPlayerIndex: nextPlayerIndex
     };
+
+    console.log('Turn changing from', currentPlayer.name, 'to', nextPlayer.name);
 
     await updateGameState(newGameState);
     setSelectedCastle(undefined);
@@ -178,15 +211,22 @@ export const useKingdomsGame = () => {
       return;
     }
 
+    console.log('Placing tile for player:', currentPlayer.name);
+
     const newBoard = gameState.board.map(r => [...r]);
     const updatedTile = { ...tile, position: { row, col } };
     newBoard[row][col] = updatedTile;
 
+    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+    const nextPlayer = gameState.players[nextPlayerIndex];
+
     const newGameState = {
       ...gameState,
       board: newBoard,
-      currentPlayerIndex: (gameState.currentPlayerIndex + 1) % gameState.players.length
+      currentPlayerIndex: nextPlayerIndex
     };
+
+    console.log('Turn changing from', currentPlayer.name, 'to', nextPlayer.name);
 
     await updateGameState(newGameState);
     setSelectedTile(undefined);
@@ -202,6 +242,8 @@ export const useKingdomsGame = () => {
       toast.error('No starting tile available or not your turn');
       return;
     }
+
+    console.log('Placing starting tile for player:', currentPlayer.name);
 
     await placeTile(currentPlayer.startingTile, row, col);
     
@@ -258,10 +300,15 @@ export const useKingdomsGame = () => {
       return;
     }
 
+    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+    const nextPlayer = gameState.players[nextPlayerIndex];
+
     const newGameState = {
       ...gameState,
-      currentPlayerIndex: (gameState.currentPlayerIndex + 1) % gameState.players.length
+      currentPlayerIndex: nextPlayerIndex
     };
+
+    console.log('Passing turn from', currentPlayer.name, 'to', nextPlayer.name);
 
     await updateGameState(newGameState);
     setSelectedCastle(undefined);
