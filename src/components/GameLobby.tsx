@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Users, Crown, Check, X } from 'lucide-react';
+import { Copy, Users, Crown, Check, X, Wifi } from 'lucide-react';
 import { Room } from '@/types/room';
-import { getRoom, setPlayerReady, startGame, leaveRoom } from '@/utils/roomManager';
+import { getRoom, setPlayerReady, startGame, leaveRoom, subscribeToRoom } from '@/utils/supabaseRoomManager';
 import { toast } from 'sonner';
 
 interface GameLobbyProps {
@@ -23,11 +23,13 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   const [room, setRoom] = useState<Room | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
 
   useEffect(() => {
-    const updateRoom = () => {
+    // Initial room load
+    const loadRoom = async () => {
       try {
-        const currentRoom = getRoom(roomCode);
+        const currentRoom = await getRoom(roomCode);
         if (currentRoom) {
           setRoom(currentRoom);
           const currentPlayer = currentRoom.players.find(p => p.id === playerId);
@@ -36,33 +38,54 @@ const GameLobby: React.FC<GameLobbyProps> = ({
           }
         }
       } catch (error) {
-        console.error('Error updating room:', error);
+        console.error('Error loading room:', error);
+        toast.error('Failed to load room');
       }
     };
 
-    updateRoom();
-    const interval = setInterval(updateRoom, 2000); // Poll every 2 seconds
+    loadRoom();
 
-    return () => clearInterval(interval);
-  }, [roomCode, playerId]);
+    // Set up real-time subscription
+    const unsubscribe = subscribeToRoom(roomCode, (updatedRoom) => {
+      if (updatedRoom) {
+        setRoom(updatedRoom);
+        const currentPlayer = updatedRoom.players.find(p => p.id === playerId);
+        if (currentPlayer) {
+          setIsReady(currentPlayer.isReady);
+        }
+        
+        // Check if game started
+        if (updatedRoom.status === 'playing') {
+          onGameStart(updatedRoom);
+        }
+      }
+      setIsConnected(true);
+    });
+
+    // Connection status monitoring
+    const connectionInterval = setInterval(() => {
+      setIsConnected(navigator.onLine);
+    }, 5000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(connectionInterval);
+    };
+  }, [roomCode, playerId, onGameStart]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(roomCode);
     toast.success('Room code copied to clipboard!');
   };
 
-  const handleToggleReady = () => {
+  const handleToggleReady = async () => {
     if (isLoading) return;
     
     setIsLoading(true);
     try {
       const newReadyState = !isReady;
-      const updatedRoom = setPlayerReady(playerId, newReadyState);
-      if (updatedRoom) {
-        setRoom(updatedRoom);
-        setIsReady(newReadyState);
-        toast.success(newReadyState ? 'You are ready!' : 'Ready status removed');
-      }
+      await setPlayerReady(playerId, roomCode, newReadyState);
+      toast.success(newReadyState ? 'You are ready!' : 'Ready status removed');
     } catch (error) {
       toast.error('Failed to update ready status');
       console.error('Ready toggle error:', error);
@@ -71,32 +94,27 @@ const GameLobby: React.FC<GameLobbyProps> = ({
     }
   };
 
-  const handleStartGame = () => {
+  const handleStartGame = async () => {
     if (isLoading) return;
     
     setIsLoading(true);
     try {
-      const updatedRoom = startGame(playerId);
-      if (updatedRoom) {
-        toast.success('Game starting!');
-        onGameStart(updatedRoom);
-      } else {
-        toast.error('Cannot start game');
-      }
+      await startGame(playerId, roomCode);
+      toast.success('Game starting!');
     } catch (error) {
-      toast.error('Failed to start game');
+      toast.error(error instanceof Error ? error.message : 'Failed to start game');
       console.error('Start game error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleLeaveRoom = () => {
+  const handleLeaveRoom = async () => {
     if (isLoading) return;
     
     setIsLoading(true);
     try {
-      leaveRoom(playerId);
+      await leaveRoom(playerId, roomCode);
       onLeaveRoom();
       toast.info('Left the room');
     } catch (error) {
@@ -141,6 +159,12 @@ const GameLobby: React.FC<GameLobbyProps> = ({
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <Wifi className={`h-4 w-4 ${isConnected ? 'text-green-500' : 'text-red-500'}`} />
+              <span className={`text-xs ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
+                {isConnected ? 'Connected' : 'Connection lost'}
+              </span>
+            </div>
           </CardHeader>
           
           <CardContent className="space-y-6">
@@ -171,6 +195,9 @@ const GameLobby: React.FC<GameLobbyProps> = ({
                       <span className="font-medium">{player.name}</span>
                       {player.isHost && (
                         <Crown className="h-4 w-4 text-yellow-500" />
+                      )}
+                      {player.id === playerId && (
+                        <span className="text-xs text-blue-600">(You)</span>
                       )}
                     </div>
                     
@@ -209,7 +236,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
                 onClick={handleToggleReady}
                 variant={isReady ? "default" : "outline"}
                 className="flex-1"
-                disabled={isLoading}
+                disabled={isLoading || !isConnected}
               >
                 {isLoading ? (
                   'Updating...'
@@ -226,7 +253,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
               {isHost && (
                 <Button
                   onClick={handleStartGame}
-                  disabled={!canStartGame || isLoading}
+                  disabled={!canStartGame || isLoading || !isConnected}
                   className="flex-1"
                   variant="default"
                 >

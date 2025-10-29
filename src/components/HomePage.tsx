@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Users, Plus, Bug } from 'lucide-react';
-import { createRoom, joinRoom } from '@/utils/roomManager';
+import { Users, Plus, Wifi } from 'lucide-react';
+import { createRoom, joinRoom } from '@/utils/supabaseRoomManager';
 import { toast } from 'sonner';
 
 interface HomePageProps {
@@ -12,30 +12,12 @@ interface HomePageProps {
 }
 
 const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
-  const [mode, setMode] = useState<'home' | 'create' | 'join' | 'debug'>('home');
+  const [mode, setMode] = useState<'home' | 'create' | 'join'>('home');
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string>('');
 
-  useEffect(() => {
-    // Test localStorage on component mount
-    try {
-      localStorage.setItem('test', 'working');
-      const test = localStorage.getItem('test');
-      console.log('[DEBUG] localStorage test:', test);
-      
-      // Show current rooms in localStorage
-      const rooms = localStorage.getItem('kingdoms_rooms');
-      console.log('[DEBUG] Current rooms in localStorage:', rooms);
-      setDebugInfo(`localStorage test: ${test}\nCurrent rooms: ${rooms || 'none'}`);
-    } catch (error) {
-      console.error('[DEBUG] localStorage error:', error);
-      setDebugInfo(`localStorage error: ${error}`);
-    }
-  }, []);
-
-  const handleCreateRoom = () => {
+  const handleCreateRoom = async () => {
     if (!playerName.trim()) {
       toast.error('Please enter your name');
       return;
@@ -43,20 +25,18 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
 
     setIsLoading(true);
     try {
-      console.log('[DEBUG] About to create room for:', playerName.trim());
-      const { room, playerId } = createRoom(playerName.trim());
-      console.log('[DEBUG] Room created successfully:', { room, playerId });
+      const { room, playerId } = await createRoom(playerName.trim());
       toast.success(`Room created! Code: ${room.code}`);
       onRoomJoined(room.code, playerId);
     } catch (error) {
-      console.error('[DEBUG] Create room error:', error);
-      toast.error('Failed to create room');
+      toast.error(error instanceof Error ? error.message : 'Failed to create room');
+      console.error('Create room error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleJoinRoom = () => {
+  const handleJoinRoom = async () => {
     if (!playerName.trim()) {
       toast.error('Please enter your name');
       return;
@@ -69,86 +49,18 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
 
     setIsLoading(true);
     try {
-      console.log('[DEBUG] About to join room:', { roomCode: roomCode.trim(), playerName: playerName.trim() });
-      
-      // Check what's in localStorage before joining
-      const currentRooms = localStorage.getItem('kingdoms_rooms');
-      console.log('[DEBUG] Current localStorage before join:', currentRooms);
-      
-      const result = joinRoom(roomCode.trim(), playerName.trim());
-      console.log('[DEBUG] Join room result:', result);
-      
+      const result = await joinRoom(roomCode.trim(), playerName.trim());
       if (result) {
         toast.success('Joined room successfully!');
         onRoomJoined(result.room.code, result.playerId);
       }
     } catch (error) {
-      console.error('[DEBUG] Join room error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to join room');
+      console.error('Join room error:', error);
     } finally {
       setIsLoading(false);
     }
   };
-
-  const testLocalStorage = () => {
-    try {
-      // Create a test room manually
-      const testData = {
-        'TEST123': {
-          id: 'test-room',
-          code: 'TEST123',
-          hostId: 'test-host',
-          players: [{ id: 'test-host', name: 'Test Host', isHost: true, isReady: false }],
-          maxPlayers: 4,
-          status: 'waiting',
-          createdAt: new Date()
-        }
-      };
-      
-      localStorage.setItem('kingdoms_rooms', JSON.stringify(testData));
-      console.log('[DEBUG] Test room created in localStorage');
-      
-      // Try to retrieve it
-      const retrieved = localStorage.getItem('kingdoms_rooms');
-      console.log('[DEBUG] Retrieved test data:', retrieved);
-      
-      toast.success('Test room TEST123 created in localStorage');
-      setDebugInfo(`Test room created: ${retrieved}`);
-    } catch (error) {
-      console.error('[DEBUG] Test failed:', error);
-      toast.error('localStorage test failed');
-    }
-  };
-
-  if (mode === 'debug') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold">Debug Info</CardTitle>
-          </CardHeader>
-          
-          <CardContent className="space-y-4">
-            <div className="bg-gray-100 p-3 rounded text-xs font-mono whitespace-pre-wrap">
-              {debugInfo}
-            </div>
-            
-            <Button onClick={testLocalStorage} className="w-full">
-              Create Test Room (TEST123)
-            </Button>
-            
-            <Button 
-              onClick={() => setMode('home')} 
-              variant="outline" 
-              className="w-full"
-            >
-              Back
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   if (mode === 'create') {
     return (
@@ -156,7 +68,7 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold">Create Room</CardTitle>
-            <p className="text-gray-600">Start a new game</p>
+            <p className="text-gray-600">Start a new multiplayer game</p>
           </CardHeader>
           
           <CardContent className="space-y-4">
@@ -221,7 +133,7 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
                 id="roomCode"
                 value={roomCode}
                 onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                placeholder="Enter 6-letter code (try TEST123)"
+                placeholder="Enter 6-letter code"
                 maxLength={6}
                 className="uppercase"
               />
@@ -256,6 +168,10 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold mb-2">Kingdoms</CardTitle>
           <p className="text-gray-600">Strategic tile placement game</p>
+          <div className="flex items-center justify-center gap-2 mt-2 text-sm text-green-600">
+            <Wifi className="h-4 w-4" />
+            <span>Real-time multiplayer</span>
+          </div>
         </CardHeader>
         
         <CardContent className="space-y-4">
@@ -278,29 +194,19 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
             Join Room
           </Button>
 
-          <Button 
-            onClick={() => setMode('debug')} 
-            variant="secondary" 
-            className="w-full"
-            size="sm"
-          >
-            <Bug className="mr-2 h-4 w-4" />
-            Debug Info
-          </Button>
-
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm">
-            <h4 className="font-semibold mb-2">Testing Note:</h4>
-            <p className="text-gray-600 text-xs">
-              localStorage is isolated per browser/domain. For true cross-browser testing, 
-              you'll need to use the same browser in different tabs/windows, or use the debug 
-              mode to create a test room.
-            </p>
+          <div className="mt-6 p-4 bg-green-50 rounded-lg text-sm border border-green-200">
+            <h4 className="font-semibold mb-2 text-green-800">🌍 Play with friends anywhere!</h4>
+            <ul className="space-y-1 text-green-700 text-xs">
+              <li>• Create a room and share the code</li>
+              <li>• Friends can join from any device/location</li>
+              <li>• Real-time synchronization</li>
+              <li>• Cross-platform compatible</li>
+            </ul>
           </div>
 
           <div className="mt-4 p-4 bg-gray-50 rounded-lg text-sm">
             <h4 className="font-semibold mb-2">How to play:</h4>
             <ul className="space-y-1 text-gray-600">
-              <li>• Create a room and share the code with friends</li>
               <li>• Place castles and tiles strategically</li>
               <li>• Score points from rows and columns</li>
               <li>• Game lasts 3 epochs - most gold wins!</li>
