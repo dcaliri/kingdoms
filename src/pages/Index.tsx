@@ -25,6 +25,7 @@ const Index = () => {
     selectedTile,
     hasSelectedStartingTile,
     isInitializing,
+    loadingAttempts,
     initializeGameFromRoom,
     setSelectedCastle,
     drawAndPlaceTile,
@@ -40,6 +41,10 @@ const Index = () => {
   };
 
   const handleGameStart = (roomData: Room) => {
+    console.log('=== GAME START TRIGGERED ===');
+    console.log('Room data:', roomData);
+    console.log('Player ID:', playerId);
+    
     setRoom(roomData);
     initializeGameFromRoom(roomData, playerId);
     setAppState('playing');
@@ -54,7 +59,9 @@ const Index = () => {
 
   const handleManualRefresh = () => {
     if (room) {
-      console.log('Manual refresh triggered');
+      console.log('=== MANUAL REFRESH TRIGGERED ===');
+      console.log('Room:', room);
+      console.log('Player ID:', playerId);
       initializeGameFromRoom(room, playerId);
     }
   };
@@ -75,19 +82,25 @@ const Index = () => {
   }
 
   if (isInitializing || !gameState) {
+    const isHost = room?.players.find(p => p.id === playerId)?.isHost;
+    
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-md">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-lg">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <h2 className="text-xl font-semibold mb-2">Loading Game...</h2>
           <p className="text-gray-600 mb-4">
             {isInitializing ? 'Initializing game state...' : 'Waiting for game data...'}
           </p>
           
-          <div className="text-sm text-gray-500 space-y-1 mb-4">
-            <div>Room: {roomCode}</div>
-            <div>Player ID: {playerId}</div>
-            <div>Status: {isInitializing ? 'Initializing' : 'Waiting'}</div>
+          <div className="text-sm text-gray-500 space-y-1 mb-4 text-left bg-gray-50 p-3 rounded">
+            <div><strong>Room:</strong> {roomCode}</div>
+            <div><strong>Room ID:</strong> {room?.id}</div>
+            <div><strong>Player ID:</strong> {playerId}</div>
+            <div><strong>Is Host:</strong> {isHost ? 'Yes' : 'No'}</div>
+            <div><strong>Status:</strong> {isInitializing ? 'Initializing' : 'Waiting'}</div>
+            <div><strong>Loading Attempts:</strong> {loadingAttempts}</div>
+            <div><strong>Players in Room:</strong> {room?.players.length}</div>
           </div>
 
           <div className="space-y-2">
@@ -112,7 +125,7 @@ const Index = () => {
           </div>
 
           <div className="mt-4 text-xs text-gray-400">
-            If this persists, try refreshing the page
+            Check browser console for detailed logs
           </div>
         </div>
       </div>

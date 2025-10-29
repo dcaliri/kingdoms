@@ -31,7 +31,7 @@ export const saveGameState = async (roomId: string, gameState: GameState): Promi
 
 export const loadGameState = async (roomId: string): Promise<GameState | null> => {
   try {
-    console.log('Loading game state from database:', roomId);
+    console.log('Loading game state from database for room:', roomId);
     
     const { data, error } = await supabase
       .from('games')
@@ -45,10 +45,16 @@ export const loadGameState = async (roomId: string): Promise<GameState | null> =
         console.log('No game state found for room:', roomId);
         return null;
       }
+      console.error('Error loading game state:', error);
       throw error;
     }
 
-    console.log('Game state loaded:', data);
+    if (!data) {
+      console.log('No data returned for room:', roomId);
+      return null;
+    }
+
+    console.log('Game state loaded successfully:', data);
     return data.game_state as GameState;
   } catch (error) {
     console.error('Failed to load game state:', error);
@@ -71,18 +77,52 @@ export const subscribeToGameState = (roomId: string, callback: (gameState: GameS
       },
       async (payload) => {
         console.log('Game state change detected:', payload);
-        if (payload.new) {
+        if (payload.new && payload.new.game_state) {
           const gameState = payload.new.game_state as GameState;
+          console.log('Calling callback with game state:', gameState);
           callback(gameState);
+        } else if (payload.eventType === 'DELETE') {
+          console.log('Game state deleted');
+          callback(null);
         }
       }
     )
     .subscribe((status) => {
       console.log('Game subscription status:', status);
+      if (status === 'SUBSCRIBED') {
+        console.log('Successfully subscribed to game state changes');
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('Error subscribing to game state changes');
+      }
     });
 
   return () => {
     console.log('Unsubscribing from game state:', roomId);
     supabase.removeChannel(channel);
   };
+};
+
+// Add a direct check function for debugging
+export const checkGameStateExists = async (roomId: string): Promise<boolean> => {
+  try {
+    console.log('Checking if game state exists for room:', roomId);
+    
+    const { data, error } = await supabase
+      .from('games')
+      .select('id')
+      .eq('room_id', roomId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking game state:', error);
+      return false;
+    }
+
+    const exists = !!data;
+    console.log('Game state exists:', exists);
+    return exists;
+  } catch (error) {
+    console.error('Failed to check game state:', error);
+    return false;
+  }
 };
