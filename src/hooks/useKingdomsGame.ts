@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { GameState, Player, Castle, Tile, PlayerColor } from '@/types/game';
 import { Room } from '@/types/room';
 import { 
@@ -11,16 +11,46 @@ import {
   BOARD_ROWS,
   BOARD_COLS
 } from '@/utils/gameLogic';
+import { saveGameState, loadGameState, subscribeToGameState } from '@/utils/supabaseGameManager';
 import { toast } from 'sonner';
 
 export const useKingdomsGame = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [currentPlayerId, setCurrentPlayerId] = useState<string>('');
+  const [roomId, setRoomId] = useState<string>('');
   const [selectedCastle, setSelectedCastle] = useState<Castle | undefined>();
   const [selectedTile, setSelectedTile] = useState<Tile | undefined>();
   const [hasSelectedStartingTile, setHasSelectedStartingTile] = useState(false);
 
-  const initializeGameFromRoom = useCallback((room: Room, playerId: string) => {
+  const updateGameState = useCallback(async (newGameState: GameState) => {
+    console.log('Updating game state:', newGameState);
+    setGameState(newGameState);
+    
+    if (roomId) {
+      try {
+        await saveGameState(roomId, newGameState);
+      } catch (error) {
+        console.error('Failed to save game state:', error);
+        toast.error('Failed to sync game state');
+      }
+    }
+  }, [roomId]);
+
+  const initializeGameFromRoom = useCallback(async (room: Room, playerId: string) => {
+    console.log('Initializing game from room:', { room, playerId });
+    setCurrentPlayerId(playerId);
+    setRoomId(room.id);
+
+    // Try to load existing game state first
+    const existingGameState = await loadGameState(room.id);
+    if (existingGameState) {
+      console.log('Loading existing game state:', existingGameState);
+      setGameState(existingGameState);
+      toast.success('Game resumed!');
+      return;
+    }
+
+    // Create new game state
     const players: Player[] = room.players.map((roomPlayer) => ({
       id: roomPlayer.id,
       name: roomPlayer.name,
@@ -49,16 +79,30 @@ export const useKingdomsGame = () => {
       scores: {}
     };
 
-    setGameState(initialGameState);
-    setCurrentPlayerId(playerId);
+    await updateGameState(initialGameState);
     setSelectedCastle(undefined);
     setSelectedTile(undefined);
     setHasSelectedStartingTile(false);
     
     toast.success('Game started!');
-  }, []);
+  }, [updateGameState]);
 
-  const placeCastle = useCallback((castle: Castle, row: number, col: number) => {
+  // Set up real-time subscription
+  useEffect(() => {
+    if (!roomId) return;
+
+    console.log('Setting up game state subscription for room:', roomId);
+    const unsubscribe = subscribeToGameState(roomId, (updatedGameState) => {
+      if (updatedGameState) {
+        console.log('Received game state update:', updatedGameState);
+        setGameState(updatedGameState);
+      }
+    });
+
+    return unsubscribe;
+  }, [roomId]);
+
+  const placeCastle = useCallback(async (castle: Castle, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
       toast.error('Invalid position');
       return;
@@ -70,38 +114,35 @@ export const useKingdomsGame = () => {
       return;
     }
 
-    setGameState(prev => {
-      if (!prev) return prev;
+    const newBoard = gameState.board.map(r => [...r]);
+    const updatedCastle = { ...castle, position: { row, col } };
+    newBoard[row][col] = updatedCastle;
 
-      const newBoard = prev.board.map(r => [...r]);
-      const updatedCastle = { ...castle, position: { row, col } };
-      newBoard[row][col] = updatedCastle;
-
-      const updatedPlayers = prev.players.map(player => {
-        if (player.id === currentPlayer.id) {
-          return {
-            ...player,
-            castles: player.castles.map(c => 
-              c.id === castle.id ? updatedCastle : c
-            )
-          };
-        }
-        return player;
-      });
-
-      return {
-        ...prev,
-        board: newBoard,
-        players: updatedPlayers,
-        currentPlayerIndex: (prev.currentPlayerIndex + 1) % prev.players.length
-      };
+    const updatedPlayers = gameState.players.map(player => {
+      if (player.id === currentPlayer.id) {
+        return {
+          ...player,
+          castles: player.castles.map(c => 
+            c.id === castle.id ? updatedCastle : c
+          )
+        };
+      }
+      return player;
     });
 
+    const newGameState = {
+      ...gameState,
+      board: newBoard,
+      players: updatedPlayers,
+      currentPlayerIndex: (gameState.currentPlayerIndex + 1) % gameState.players.length
+    };
+
+    await updateGameState(newGameState);
     setSelectedCastle(undefined);
     toast.success('Castle placed!');
-  }, [gameState, currentPlayerId]);
+  }, [gameState, currentPlayerId, updateGameState]);
 
-  const drawAndPlaceTile = useCallback(() => {
+  const drawAndPlaceTile = useCallback(async () => {
     if (!gameState || gameState.tileSupply.length === 0) {
       toast.error('No tiles available');
       return;
@@ -116,18 +157,16 @@ export const useKingdomsGame = () => {
     const drawnTile = gameState.tileSupply[0];
     setSelectedTile(drawnTile);
     
-    setGameState(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        tileSupply: prev.tileSupply.slice(1)
-      };
-    });
+    const newGameState = {
+      ...gameState,
+      tileSupply: gameState.tileSupply.slice(1)
+    };
 
+    await updateGameState(newGameState);
     toast.success(`Drew ${drawnTile.name} - click an empty space to place it`);
-  }, [gameState, currentPlayerId]);
+  }, [gameState, currentPlayerId, updateGameState]);
 
-  const placeTile = useCallback((tile: Tile, row: number, col: number) => {
+  const placeTile = useCallback(async (tile: Tile, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
       toast.error('Invalid position');
       return;
@@ -139,26 +178,23 @@ export const useKingdomsGame = () => {
       return;
     }
 
-    setGameState(prev => {
-      if (!prev) return prev;
+    const newBoard = gameState.board.map(r => [...r]);
+    const updatedTile = { ...tile, position: { row, col } };
+    newBoard[row][col] = updatedTile;
 
-      const newBoard = prev.board.map(r => [...r]);
-      const updatedTile = { ...tile, position: { row, col } };
-      newBoard[row][col] = updatedTile;
+    const newGameState = {
+      ...gameState,
+      board: newBoard,
+      currentPlayerIndex: (gameState.currentPlayerIndex + 1) % gameState.players.length
+    };
 
-      return {
-        ...prev,
-        board: newBoard,
-        currentPlayerIndex: (prev.currentPlayerIndex + 1) % prev.players.length
-      };
-    });
-
+    await updateGameState(newGameState);
     setSelectedTile(undefined);
     setHasSelectedStartingTile(false);
     toast.success('Tile placed!');
-  }, [gameState, currentPlayerId]);
+  }, [gameState, currentPlayerId, updateGameState]);
 
-  const placeStartingTile = useCallback((row: number, col: number) => {
+  const placeStartingTile = useCallback(async (row: number, col: number) => {
     if (!gameState) return;
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
@@ -167,21 +203,18 @@ export const useKingdomsGame = () => {
       return;
     }
 
-    placeTile(currentPlayer.startingTile, row, col);
+    await placeTile(currentPlayer.startingTile, row, col);
     
-    setGameState(prev => {
-      if (!prev) return prev;
-      
-      const updatedPlayers = prev.players.map(player => {
-        if (player.id === currentPlayer.id) {
-          return { ...player, startingTile: undefined };
-        }
-        return player;
-      });
-
-      return { ...prev, players: updatedPlayers };
+    const updatedPlayers = gameState.players.map(player => {
+      if (player.id === currentPlayer.id) {
+        return { ...player, startingTile: undefined };
+      }
+      return player;
     });
-  }, [gameState, currentPlayerId, placeTile]);
+
+    const newGameState = { ...gameState, players: updatedPlayers };
+    await updateGameState(newGameState);
+  }, [gameState, currentPlayerId, placeTile, updateGameState]);
 
   const handleCellClick = useCallback((row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) return;
@@ -216,7 +249,7 @@ export const useKingdomsGame = () => {
     toast.success('Starting tile selected - click an empty space to place it');
   }, [gameState, currentPlayerId]);
 
-  const passTurn = useCallback(() => {
+  const passTurn = useCallback(async () => {
     if (!gameState) return;
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
@@ -225,21 +258,19 @@ export const useKingdomsGame = () => {
       return;
     }
 
-    setGameState(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        currentPlayerIndex: (prev.currentPlayerIndex + 1) % prev.players.length
-      };
-    });
+    const newGameState = {
+      ...gameState,
+      currentPlayerIndex: (gameState.currentPlayerIndex + 1) % gameState.players.length
+    };
 
+    await updateGameState(newGameState);
     setSelectedCastle(undefined);
     setSelectedTile(undefined);
     setHasSelectedStartingTile(false);
     toast.info('Turn passed');
-  }, [gameState, currentPlayerId]);
+  }, [gameState, currentPlayerId, updateGameState]);
 
-  const checkEpochEnd = useCallback(() => {
+  const checkEpochEnd = useCallback(async () => {
     if (!gameState) return;
 
     const boardFull = gameState.board.every(row => row.every(cell => cell !== null));
@@ -249,70 +280,70 @@ export const useKingdomsGame = () => {
       // End epoch and score
       const scores = calculateScore(gameState);
       
-      setGameState(prev => {
-        if (!prev) return prev;
+      // Update player gold
+      const updatedPlayers = gameState.players.map(player => ({
+        ...player,
+        gold: Math.max(0, player.gold + (scores[player.id] || 0))
+      }));
 
-        // Update player gold
-        const updatedPlayers = prev.players.map(player => ({
-          ...player,
-          gold: Math.max(0, player.gold + (scores[player.id] || 0))
-        }));
+      if (gameState.epoch === 3) {
+        // Game over
+        const winner = updatedPlayers.reduce((prev, current) => 
+          current.gold > prev.gold ? current : prev
+        );
 
-        if (prev.epoch === 3) {
-          // Game over
-          const winner = updatedPlayers.reduce((prev, current) => 
-            current.gold > prev.gold ? current : prev
-          );
+        toast.success(`Game Over! ${winner.name} wins with ${winner.gold} gold!`);
 
-          toast.success(`Game Over! ${winner.name} wins with ${winner.gold} gold!`);
+        const finalGameState = {
+          ...gameState,
+          players: updatedPlayers,
+          gamePhase: 'finished' as const,
+          winner
+        };
 
+        await updateGameState(finalGameState);
+      } else {
+        // Prepare next epoch
+        const nextEpoch = (gameState.epoch + 1) as 1 | 2 | 3;
+        
+        // Reset board and redistribute castles
+        const resetPlayers = updatedPlayers.map(player => {
+          const rank1Castles = player.castles.filter(c => c.rank === 1).map(c => ({ ...c, position: undefined }));
           return {
-            ...prev,
-            players: updatedPlayers,
-            gamePhase: 'finished',
-            winner
+            ...player,
+            castles: rank1Castles,
+            startingTile: undefined
           };
-        } else {
-          // Prepare next epoch
-          const nextEpoch = (prev.epoch + 1) as 1 | 2 | 3;
-          
-          // Reset board and redistribute castles
-          const resetPlayers = updatedPlayers.map(player => {
-            const rank1Castles = player.castles.filter(c => c.rank === 1).map(c => ({ ...c, position: undefined }));
-            return {
-              ...player,
-              castles: rank1Castles,
-              startingTile: undefined
-            };
-          });
+        });
 
-          // Shuffle tiles and give new starting tiles
-          const shuffledTiles = shuffleArray(createInitialTiles());
-          resetPlayers.forEach(player => {
-            if (shuffledTiles.length > 0) {
-              player.startingTile = shuffledTiles.pop();
-            }
-          });
+        // Shuffle tiles and give new starting tiles
+        const shuffledTiles = shuffleArray(createInitialTiles());
+        resetPlayers.forEach(player => {
+          if (shuffledTiles.length > 0) {
+            player.startingTile = shuffledTiles.pop();
+          }
+        });
 
-          // Determine new first player (highest gold)
-          const sortedPlayers = [...resetPlayers].sort((a, b) => b.gold - a.gold);
-          const newFirstPlayerIndex = resetPlayers.findIndex(p => p.id === sortedPlayers[0].id);
+        // Determine new first player (highest gold)
+        const sortedPlayers = [...resetPlayers].sort((a, b) => b.gold - a.gold);
+        const newFirstPlayerIndex = resetPlayers.findIndex(p => p.id === sortedPlayers[0].id);
 
-          toast.success(`Epoch ${prev.epoch} complete! Starting Epoch ${nextEpoch}`);
+        toast.success(`Epoch ${gameState.epoch} complete! Starting Epoch ${nextEpoch}`);
 
-          return {
-            ...prev,
-            players: resetPlayers,
-            epoch: nextEpoch,
-            board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
-            tileSupply: shuffledTiles,
-            currentPlayerIndex: newFirstPlayerIndex,
-            scores: { ...prev.scores, [`epoch${prev.epoch}`]: scores }
-          };
-        }
-      });
+        const nextEpochGameState = {
+          ...gameState,
+          players: resetPlayers,
+          epoch: nextEpoch,
+          board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
+          tileSupply: shuffledTiles,
+          currentPlayerIndex: newFirstPlayerIndex,
+          scores: { ...gameState.scores, [`epoch${gameState.epoch}`]: scores }
+        };
+
+        await updateGameState(nextEpochGameState);
+      }
     }
-  }, [gameState]);
+  }, [gameState, updateGameState]);
 
   // Check for epoch end after each move
   React.useEffect(() => {

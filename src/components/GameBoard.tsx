@@ -25,19 +25,19 @@ const GameBoard: React.FC<GameBoardProps> = ({
       <div
         key={`${row}-${col}`}
         className={cn(
-          "aspect-square border-2 border-gray-300 flex items-center justify-center text-xs font-bold cursor-pointer transition-all",
+          "aspect-square border-2 border-gray-300 flex items-center justify-center text-sm font-bold cursor-pointer transition-all hover:shadow-md",
           isEmpty && "bg-gray-50 hover:bg-gray-100",
-          canPlace && "border-blue-400 bg-blue-50 hover:bg-blue-100",
-          !isEmpty && "bg-white"
+          canPlace && "border-blue-400 bg-blue-50 hover:bg-blue-100 ring-2 ring-blue-200",
+          !isEmpty && "bg-white shadow-sm"
         )}
         onClick={() => onCellClick(row, col)}
       >
         {cell && (
-          <div className="w-full h-full flex flex-col items-center justify-center p-1">
+          <div className="w-full h-full flex flex-col items-center justify-center p-2">
             {'rank' in cell ? (
               // Castle
               <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs",
+                "w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md",
                 cell.color === 'red' && "bg-red-500",
                 cell.color === 'blue' && "bg-blue-500",
                 cell.color === 'yellow' && "bg-yellow-500",
@@ -48,7 +48,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
             ) : (
               // Tile
               <div className={cn(
-                "w-full h-full flex flex-col items-center justify-center rounded text-center",
+                "w-full h-full flex flex-col items-center justify-center rounded text-center shadow-sm",
                 cell.type === 'resource' && "bg-green-200 text-green-800",
                 cell.type === 'hazard' && "bg-red-200 text-red-800",
                 cell.type === 'mountain' && "bg-gray-400 text-white",
@@ -56,11 +56,11 @@ const GameBoard: React.FC<GameBoardProps> = ({
                 cell.type === 'goldmine' && "bg-yellow-400 text-yellow-900",
                 cell.type === 'wizard' && "bg-indigo-400 text-white"
               )}>
-                <div className="text-xs font-semibold leading-tight">
+                <div className="text-xs font-semibold leading-tight mb-1">
                   {cell.name}
                 </div>
                 {cell.value !== 0 && (
-                  <div className="text-xs font-bold">
+                  <div className="text-sm font-bold">
                     {cell.value > 0 ? '+' : ''}{cell.value}
                   </div>
                 )}
@@ -73,20 +73,25 @@ const GameBoard: React.FC<GameBoardProps> = ({
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-lg">
-      <div className="grid grid-cols-6 gap-1 max-w-md mx-auto">
+    <div className="bg-white p-6 rounded-lg shadow-lg">
+      <div className="grid grid-cols-6 gap-2 w-full max-w-3xl mx-auto">
         {Array.from({ length: BOARD_ROWS }, (_, row) =>
           Array.from({ length: BOARD_COLS }, (_, col) => renderCell(row, col))
         )}
       </div>
       
       <div className="mt-4 text-center">
-        <div className="text-sm text-gray-600">
+        <div className="text-lg text-gray-700 font-semibold">
           Epoch {gameState.epoch} of 3
         </div>
-        <div className="text-xs text-gray-500 mt-1">
+        <div className="text-sm text-gray-600 mt-1">
           Current Player: {gameState.players[gameState.currentPlayerIndex].name}
         </div>
+        {(selectedCastle || selectedTile) && (
+          <div className="text-sm text-blue-600 mt-2 font-medium">
+            Click an empty space to place your {selectedCastle ? 'castle' : 'tile'}
+          </div>
+        )}
       </div>
     </div>
   );

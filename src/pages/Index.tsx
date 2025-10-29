@@ -108,21 +108,22 @@ const Index = () => {
   const ownPlayer = gameState.players.find(p => p.id === currentPlayerId);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
+    <div className="min-h-screen bg-gray-100 p-2">
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold mb-2">Kingdoms</h1>
-          <p className="text-gray-600">
+        {/* Header - Smaller */}
+        <div className="text-center mb-3">
+          <h1 className="text-2xl font-bold mb-1">Kingdoms</h1>
+          <p className="text-sm text-gray-600">
             Epoch {gameState.epoch} of 3 • {currentPlayer.name}'s Turn
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-xs text-gray-500">
             Room: {roomCode} • You are: {ownPlayer?.name}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Players */}
-          <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+          {/* Left Column - Players (Smaller) */}
+          <div className="lg:col-span-1 space-y-2">
             {gameState.players.map(player => (
               <PlayerPanel
                 key={player.id}
@@ -137,18 +138,20 @@ const Index = () => {
             ))}
           </div>
 
-          {/* Center Column - Game Board */}
-          <div className="flex justify-center">
-            <GameBoard
-              gameState={gameState}
-              onCellClick={handleCellClick}
-              selectedCastle={selectedCastle}
-              selectedTile={selectedTile}
-            />
+          {/* Center Column - Game Board (Bigger) */}
+          <div className="lg:col-span-2 flex justify-center">
+            <div className="w-full max-w-2xl">
+              <GameBoard
+                gameState={gameState}
+                onCellClick={handleCellClick}
+                selectedCastle={selectedCastle}
+                selectedTile={selectedTile}
+              />
+            </div>
           </div>
 
-          {/* Right Column - Actions and Scores */}
-          <div className="space-y-4">
+          {/* Right Column - Actions and Scores (Smaller) */}
+          <div className="lg:col-span-1 space-y-3">
             <GameActions
               gameState={gameState}
               currentPlayer={currentPlayer}
