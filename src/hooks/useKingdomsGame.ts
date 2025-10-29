@@ -29,6 +29,7 @@ export const useKingdomsGame = () => {
     
     // Update local state immediately
     setGameState(newGameState);
+    setIsInitializing(false); // Game state is now available
     
     if (roomId) {
       try {
@@ -49,10 +50,10 @@ export const useKingdomsGame = () => {
 
     try {
       // Try to load existing game state first
+      console.log('Checking for existing game state...');
       const existingGameState = await loadGameState(room.id);
       if (existingGameState) {
-        console.log('Loading existing game state:', existingGameState);
-        console.log('Current player in existing game:', existingGameState.players[existingGameState.currentPlayerIndex]?.name);
+        console.log('Found existing game state:', existingGameState);
         setGameState(existingGameState);
         setIsInitializing(false);
         toast.success('Game resumed!');
@@ -61,9 +62,10 @@ export const useKingdomsGame = () => {
 
       // Check if this player is the host
       const isHost = room.players.find(p => p.id === playerId)?.isHost;
+      console.log('Player is host:', isHost);
       
       if (isHost) {
-        console.log('Host initializing new game...');
+        console.log('Host creating new game state...');
         
         const players: Player[] = room.players.map((roomPlayer) => ({
           id: roomPlayer.id,
@@ -85,7 +87,7 @@ export const useKingdomsGame = () => {
         const initialGameState: GameState = {
           id: `game-${Date.now()}`,
           players,
-          currentPlayerIndex: 0, // Always start with first player
+          currentPlayerIndex: 0,
           epoch: 1,
           board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
           tileSupply: tiles,
@@ -93,49 +95,47 @@ export const useKingdomsGame = () => {
           scores: {}
         };
 
-        console.log('Initial game state created:', initialGameState);
-        console.log('Starting player:', initialGameState.players[0]?.name);
-
+        console.log('Host created initial game state:', initialGameState);
         await updateGameState(initialGameState);
-        setSelectedCastle(undefined);
-        setSelectedTile(undefined);
-        setHasSelectedStartingTile(false);
-        setIsInitializing(false);
-        
         toast.success('Game started!');
       } else {
-        console.log('Not host, waiting for game state from host...');
-        // Non-host players will receive the game state via real-time subscription
-        // Set a timeout to check for game state periodically
-        let attempts = 0;
-        const maxAttempts = 30; // 30 seconds
+        console.log('Non-host player waiting for game state...');
+        // For non-host players, the real-time subscription will handle loading
+        // But let's also add a backup polling mechanism
+        let pollAttempts = 0;
+        const maxPollAttempts = 20; // 20 seconds
         
-        const checkForGameState = async () => {
-          attempts++;
-          console.log(`Attempt ${attempts}: Checking for game state...`);
+        const pollForGameState = async () => {
+          pollAttempts++;
+          console.log(`Poll attempt ${pollAttempts}: Checking for game state...`);
           
-          const gameState = await loadGameState(room.id);
-          if (gameState) {
-            console.log('Game state found for non-host player:', gameState);
-            setGameState(gameState);
-            setIsInitializing(false);
-            toast.success('Game loaded!');
-            return;
+          try {
+            const gameState = await loadGameState(room.id);
+            if (gameState) {
+              console.log('Found game state via polling:', gameState);
+              setGameState(gameState);
+              setIsInitializing(false);
+              toast.success('Game loaded!');
+              return;
+            }
+          } catch (error) {
+            console.error('Error polling for game state:', error);
           }
           
-          if (attempts < maxAttempts) {
-            setTimeout(checkForGameState, 1000);
+          if (pollAttempts < maxPollAttempts) {
+            setTimeout(pollForGameState, 1000);
           } else {
-            console.error('Timeout waiting for game state');
+            console.error('Polling timeout - no game state found');
             setIsInitializing(false);
-            toast.error('Failed to load game - please refresh');
+            toast.error('Failed to load game. Please try refreshing.');
           }
         };
         
-        setTimeout(checkForGameState, 1000);
+        // Start polling after a short delay
+        setTimeout(pollForGameState, 2000);
       }
     } catch (error) {
-      console.error('Error initializing game:', error);
+      console.error('Error in initializeGameFromRoom:', error);
       setIsInitializing(false);
       toast.error('Failed to initialize game');
     }
@@ -145,15 +145,15 @@ export const useKingdomsGame = () => {
   useEffect(() => {
     if (!roomId) return;
 
-    console.log('Setting up game state subscription for room:', roomId);
+    console.log('Setting up real-time subscription for room:', roomId);
+    
     const unsubscribe = subscribeToGameState(roomId, (updatedGameState) => {
+      console.log('Real-time update received:', updatedGameState);
+      
       if (updatedGameState) {
-        console.log('Received game state update via subscription:', updatedGameState);
-        console.log('Updated current player:', updatedGameState.players[updatedGameState.currentPlayerIndex]?.name);
-        
-        // Always update to the received state (this ensures synchronization)
+        console.log('Processing real-time game state update');
         setGameState(updatedGameState);
-        setIsInitializing(false); // Game state received, no longer initializing
+        setIsInitializing(false); // Stop initialization when we receive data
         
         // Clear selections when it's not your turn
         const isMyTurn = updatedGameState.players[updatedGameState.currentPlayerIndex]?.id === currentPlayerId;
@@ -199,7 +199,6 @@ export const useKingdomsGame = () => {
     });
 
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
-    const nextPlayer = gameState.players[nextPlayerIndex];
 
     const newGameState = {
       ...gameState,
@@ -207,8 +206,6 @@ export const useKingdomsGame = () => {
       players: updatedPlayers,
       currentPlayerIndex: nextPlayerIndex
     };
-
-    console.log('Turn changing from', currentPlayer.name, 'to', nextPlayer.name);
 
     await updateGameState(newGameState);
     setSelectedCastle(undefined);
@@ -251,22 +248,15 @@ export const useKingdomsGame = () => {
       return;
     }
 
-    console.log('Placing tile for player:', currentPlayer.name);
-
     const newBoard = gameState.board.map(r => [...r]);
     const updatedTile = { ...tile, position: { row, col } };
     newBoard[row][col] = updatedTile;
 
-    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
-    const nextPlayer = gameState.players[nextPlayerIndex];
-
     const newGameState = {
       ...gameState,
       board: newBoard,
-      currentPlayerIndex: nextPlayerIndex
+      currentPlayerIndex: (gameState.currentPlayerIndex + 1) % gameState.players.length
     };
-
-    console.log('Turn changing from', currentPlayer.name, 'to', nextPlayer.name);
 
     await updateGameState(newGameState);
     setSelectedTile(undefined);
@@ -282,8 +272,6 @@ export const useKingdomsGame = () => {
       toast.error('No starting tile available or not your turn');
       return;
     }
-
-    console.log('Placing starting tile for player:', currentPlayer.name);
 
     await placeTile(currentPlayer.startingTile, row, col);
     
@@ -340,15 +328,10 @@ export const useKingdomsGame = () => {
       return;
     }
 
-    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
-    const nextPlayer = gameState.players[nextPlayerIndex];
-
     const newGameState = {
       ...gameState,
-      currentPlayerIndex: nextPlayerIndex
+      currentPlayerIndex: (gameState.currentPlayerIndex + 1) % gameState.players.length
     };
-
-    console.log('Passing turn from', currentPlayer.name, 'to', nextPlayer.name);
 
     await updateGameState(newGameState);
     setSelectedCastle(undefined);
@@ -364,17 +347,14 @@ export const useKingdomsGame = () => {
     const noPlayerCanAct = gameState.players.every(player => !canPlayerAct(player, gameState));
 
     if (boardFull || noPlayerCanAct) {
-      // End epoch and score
       const scores = calculateScore(gameState);
       
-      // Update player gold
       const updatedPlayers = gameState.players.map(player => ({
         ...player,
         gold: Math.max(0, player.gold + (scores[player.id] || 0))
       }));
 
       if (gameState.epoch === 3) {
-        // Game over
         const winner = updatedPlayers.reduce((prev, current) => 
           current.gold > prev.gold ? current : prev
         );
@@ -390,10 +370,8 @@ export const useKingdomsGame = () => {
 
         await updateGameState(finalGameState);
       } else {
-        // Prepare next epoch
         const nextEpoch = (gameState.epoch + 1) as 1 | 2 | 3;
         
-        // Reset board and redistribute castles
         const resetPlayers = updatedPlayers.map(player => {
           const rank1Castles = player.castles.filter(c => c.rank === 1).map(c => ({ ...c, position: undefined }));
           return {
@@ -403,7 +381,6 @@ export const useKingdomsGame = () => {
           };
         });
 
-        // Shuffle tiles and give new starting tiles
         const shuffledTiles = shuffleArray(createInitialTiles());
         resetPlayers.forEach(player => {
           if (shuffledTiles.length > 0) {
@@ -411,7 +388,6 @@ export const useKingdomsGame = () => {
           }
         });
 
-        // Determine new first player (highest gold)
         const sortedPlayers = [...resetPlayers].sort((a, b) => b.gold - a.gold);
         const newFirstPlayerIndex = resetPlayers.findIndex(p => p.id === sortedPlayers[0].id);
 
@@ -432,7 +408,6 @@ export const useKingdomsGame = () => {
     }
   }, [gameState, updateGameState]);
 
-  // Check for epoch end after each move
   React.useEffect(() => {
     if (gameState && gameState.gamePhase === 'playing') {
       const timer = setTimeout(checkEpochEnd, 100);

@@ -7,6 +7,8 @@ import GameBoard from '@/components/GameBoard';
 import PlayerPanel from '@/components/PlayerPanel';
 import GameActions from '@/components/GameActions';
 import ScoreDisplay from '@/components/ScoreDisplay';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 type AppState = 'home' | 'lobby' | 'playing';
 
@@ -14,6 +16,7 @@ const Index = () => {
   const [appState, setAppState] = useState<AppState>('home');
   const [roomCode, setRoomCode] = useState('');
   const [playerId, setPlayerId] = useState('');
+  const [room, setRoom] = useState<Room | null>(null);
 
   const {
     gameState,
@@ -36,8 +39,9 @@ const Index = () => {
     setAppState('lobby');
   };
 
-  const handleGameStart = (room: Room) => {
-    initializeGameFromRoom(room, playerId);
+  const handleGameStart = (roomData: Room) => {
+    setRoom(roomData);
+    initializeGameFromRoom(roomData, playerId);
     setAppState('playing');
   };
 
@@ -45,6 +49,14 @@ const Index = () => {
     setAppState('home');
     setRoomCode('');
     setPlayerId('');
+    setRoom(null);
+  };
+
+  const handleManualRefresh = () => {
+    if (room) {
+      console.log('Manual refresh triggered');
+      initializeGameFromRoom(room, playerId);
+    }
   };
 
   if (appState === 'home') {
@@ -65,14 +77,42 @@ const Index = () => {
   if (isInitializing || !gameState) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center bg-white p-8 rounded-lg shadow-lg">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-md">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <h2 className="text-xl font-semibold mb-2">Loading Game...</h2>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mb-4">
             {isInitializing ? 'Initializing game state...' : 'Waiting for game data...'}
           </p>
-          <div className="mt-4 text-sm text-gray-500">
-            Room: {roomCode}
+          
+          <div className="text-sm text-gray-500 space-y-1 mb-4">
+            <div>Room: {roomCode}</div>
+            <div>Player ID: {playerId}</div>
+            <div>Status: {isInitializing ? 'Initializing' : 'Waiting'}</div>
+          </div>
+
+          <div className="space-y-2">
+            <Button 
+              onClick={handleManualRefresh}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry Loading
+            </Button>
+            
+            <Button 
+              onClick={handleLeaveRoom}
+              variant="destructive"
+              size="sm"
+              className="w-full"
+            >
+              Back to Lobby
+            </Button>
+          </div>
+
+          <div className="mt-4 text-xs text-gray-400">
+            If this persists, try refreshing the page
           </div>
         </div>
       </div>
