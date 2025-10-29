@@ -1,18 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useKingdomsGame } from '@/hooks/useKingdomsGame';
-import GameSetup from '@/components/GameSetup';
+import { Room } from '@/types/room';
+import HomePage from '@/components/HomePage';
+import GameLobby from '@/components/GameLobby';
 import GameBoard from '@/components/GameBoard';
 import PlayerPanel from '@/components/PlayerPanel';
 import GameActions from '@/components/GameActions';
 import ScoreDisplay from '@/components/ScoreDisplay';
 
+type AppState = 'home' | 'lobby' | 'playing';
+
 const Index = () => {
+  const [appState, setAppState] = useState<AppState>('home');
+  const [roomCode, setRoomCode] = useState('');
+  const [playerId, setPlayerId] = useState('');
+
   const {
     gameState,
+    currentPlayerId,
     selectedCastle,
     selectedTile,
     hasSelectedStartingTile,
-    initializeGame,
+    initializeGameFromRoom,
     setSelectedCastle,
     drawAndPlaceTile,
     handleCellClick,
@@ -20,8 +29,47 @@ const Index = () => {
     passTurn
   } = useKingdomsGame();
 
+  const handleRoomJoined = (code: string, id: string) => {
+    setRoomCode(code);
+    setPlayerId(id);
+    setAppState('lobby');
+  };
+
+  const handleGameStart = (room: Room) => {
+    initializeGameFromRoom(room, playerId);
+    setAppState('playing');
+  };
+
+  const handleLeaveRoom = () => {
+    setAppState('home');
+    setRoomCode('');
+    setPlayerId('');
+  };
+
+  if (appState === 'home') {
+    return <HomePage onRoomJoined={handleRoomJoined} />;
+  }
+
+  if (appState === 'lobby') {
+    return (
+      <GameLobby
+        roomCode={roomCode}
+        playerId={playerId}
+        onGameStart={handleGameStart}
+        onLeaveRoom={handleLeaveRoom}
+      />
+    );
+  }
+
   if (!gameState) {
-    return <GameSetup onStartGame={initializeGame} />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p>Loading game...</p>
+        </div>
+      </div>
+    );
   }
 
   if (gameState.gamePhase === 'finished') {
@@ -57,6 +105,7 @@ const Index = () => {
   }
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  const ownPlayer = gameState.players.find(p => p.id === currentPlayerId);
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -65,6 +114,9 @@ const Index = () => {
           <h1 className="text-3xl font-bold mb-2">Kingdoms</h1>
           <p className="text-gray-600">
             Epoch {gameState.epoch} of 3 • {currentPlayer.name}'s Turn
+          </p>
+          <p className="text-sm text-gray-500">
+            Room: {roomCode} • You are: {ownPlayer?.name}
           </p>
         </div>
 
@@ -76,10 +128,11 @@ const Index = () => {
                 key={player.id}
                 player={player}
                 isCurrentPlayer={player.id === currentPlayer.id}
+                isOwnPlayer={player.id === currentPlayerId}
                 onCastleSelect={setSelectedCastle}
                 onStartingTileSelect={selectStartingTile}
                 selectedCastle={selectedCastle}
-                hasSelectedStartingTile={hasSelectedStartingTile && player.id === currentPlayer.id}
+                hasSelectedStartingTile={hasSelectedStartingTile && player.id === currentPlayerId}
               />
             ))}
           </div>

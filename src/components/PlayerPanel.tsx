@@ -8,6 +8,7 @@ import TilePreview from './TilePreview';
 interface PlayerPanelProps {
   player: Player;
   isCurrentPlayer: boolean;
+  isOwnPlayer: boolean; // New prop to check if this is the viewing player
   onCastleSelect: (castle: Castle) => void;
   onStartingTileSelect: () => void;
   selectedCastle?: Castle;
@@ -17,6 +18,7 @@ interface PlayerPanelProps {
 const PlayerPanel: React.FC<PlayerPanelProps> = ({
   player,
   isCurrentPlayer,
+  isOwnPlayer,
   onCastleSelect,
   onStartingTileSelect,
   selectedCastle,
@@ -41,6 +43,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
               player.color === 'green' && "bg-green-500"
             )} />
             {player.name}
+            {isOwnPlayer && <span className="text-xs text-blue-600">(You)</span>}
           </span>
           <span className="text-lg font-bold text-yellow-600">
             {player.gold} Gold
@@ -59,7 +62,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
                 variant={selectedCastle?.id === castle.id ? "default" : "outline"}
                 size="sm"
                 onClick={() => onCastleSelect(castle)}
-                disabled={!isCurrentPlayer}
+                disabled={!isCurrentPlayer || !isOwnPlayer}
                 className="h-8 w-8 p-0"
               >
                 {castle.rank}
@@ -89,24 +92,39 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
           </div>
         </div>
 
-        {/* Starting Tile */}
+        {/* Starting Tile - Only show for own player */}
         <div>
           <h4 className="text-sm font-semibold mb-2">Starting Tile</h4>
-          {player.startingTile ? (
-            <div className="flex items-center gap-3">
-              <TilePreview tile={player.startingTile} />
-              <Button
-                variant={hasSelectedStartingTile ? "default" : "outline"}
-                size="sm"
-                onClick={onStartingTileSelect}
-                disabled={!isCurrentPlayer}
-                className="text-xs"
-              >
-                Place Tile
-              </Button>
-            </div>
+          {isOwnPlayer ? (
+            player.startingTile ? (
+              <div className="flex items-center gap-3">
+                <TilePreview tile={player.startingTile} />
+                <Button
+                  variant={hasSelectedStartingTile ? "default" : "outline"}
+                  size="sm"
+                  onClick={onStartingTileSelect}
+                  disabled={!isCurrentPlayer}
+                  className="text-xs"
+                >
+                  Place Tile
+                </Button>
+              </div>
+            ) : (
+              <span className="text-xs text-gray-500">No starting tile</span>
+            )
           ) : (
-            <span className="text-xs text-gray-500">No starting tile</span>
+            <div className="flex items-center gap-3">
+              {player.startingTile ? (
+                <>
+                  <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">
+                    Hidden
+                  </div>
+                  <span className="text-xs text-gray-500">Has starting tile</span>
+                </>
+              ) : (
+                <span className="text-xs text-gray-500">No starting tile</span>
+              )}
+            </div>
           )}
         </div>
       </CardContent>

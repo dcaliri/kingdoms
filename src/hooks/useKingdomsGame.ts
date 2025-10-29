@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { GameState, Player, Castle, Tile, PlayerColor, GameAction } from '@/types/game';
+import { GameState, Player, Castle, Tile, PlayerColor } from '@/types/game';
+import { Room } from '@/types/room';
 import { 
   createInitialTiles, 
   createInitialCastles, 
@@ -14,23 +15,18 @@ import { toast } from 'sonner';
 
 export const useKingdomsGame = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [currentPlayerId, setCurrentPlayerId] = useState<string>('');
   const [selectedCastle, setSelectedCastle] = useState<Castle | undefined>();
   const [selectedTile, setSelectedTile] = useState<Tile | undefined>();
   const [hasSelectedStartingTile, setHasSelectedStartingTile] = useState(false);
 
-  const initializeGame = useCallback((playerNames: string[]) => {
-    if (playerNames.length < 2 || playerNames.length > 4) {
-      toast.error('Game requires 2-4 players');
-      return;
-    }
-
-    const colors: PlayerColor[] = ['red', 'blue', 'yellow', 'green'];
-    const players: Player[] = playerNames.map((name, index) => ({
-      id: `player-${index}`,
-      name,
-      color: colors[index],
+  const initializeGameFromRoom = useCallback((room: Room, playerId: string) => {
+    const players: Player[] = room.players.map((roomPlayer) => ({
+      id: roomPlayer.id,
+      name: roomPlayer.name,
+      color: roomPlayer.color!,
       gold: 50,
-      castles: createInitialCastles(colors[index], playerNames.length)
+      castles: createInitialCastles(roomPlayer.color!, room.players.length)
     }));
 
     const tiles = shuffleArray(createInitialTiles());
@@ -54,6 +50,7 @@ export const useKingdomsGame = () => {
     };
 
     setGameState(initialGameState);
+    setCurrentPlayerId(playerId);
     setSelectedCastle(undefined);
     setSelectedTile(undefined);
     setHasSelectedStartingTile(false);
@@ -68,8 +65,8 @@ export const useKingdomsGame = () => {
     }
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    if (castle.color !== currentPlayer.color) {
-      toast.error('Not your castle');
+    if (castle.color !== currentPlayer.color || currentPlayer.id !== currentPlayerId) {
+      toast.error('Not your turn or not your castle');
       return;
     }
 
@@ -102,11 +99,17 @@ export const useKingdomsGame = () => {
 
     setSelectedCastle(undefined);
     toast.success('Castle placed!');
-  }, [gameState]);
+  }, [gameState, currentPlayerId]);
 
   const drawAndPlaceTile = useCallback(() => {
     if (!gameState || gameState.tileSupply.length === 0) {
       toast.error('No tiles available');
+      return;
+    }
+
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (currentPlayer.id !== currentPlayerId) {
+      toast.error('Not your turn');
       return;
     }
 
@@ -122,11 +125,17 @@ export const useKingdomsGame = () => {
     });
 
     toast.success(`Drew ${drawnTile.name} - click an empty space to place it`);
-  }, [gameState]);
+  }, [gameState, currentPlayerId]);
 
   const placeTile = useCallback((tile: Tile, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
       toast.error('Invalid position');
+      return;
+    }
+
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (currentPlayer.id !== currentPlayerId) {
+      toast.error('Not your turn');
       return;
     }
 
@@ -147,14 +156,14 @@ export const useKingdomsGame = () => {
     setSelectedTile(undefined);
     setHasSelectedStartingTile(false);
     toast.success('Tile placed!');
-  }, [gameState]);
+  }, [gameState, currentPlayerId]);
 
   const placeStartingTile = useCallback((row: number, col: number) => {
     if (!gameState) return;
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    if (!currentPlayer.startingTile) {
-      toast.error('No starting tile available');
+    if (!currentPlayer.startingTile || currentPlayer.id !== currentPlayerId) {
+      toast.error('No starting tile available or not your turn');
       return;
     }
 
@@ -172,10 +181,16 @@ export const useKingdomsGame = () => {
 
       return { ...prev, players: updatedPlayers };
     });
-  }, [gameState, placeTile]);
+  }, [gameState, currentPlayerId, placeTile]);
 
   const handleCellClick = useCallback((row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) return;
+
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (currentPlayer.id !== currentPlayerId) {
+      toast.error('Not your turn');
+      return;
+    }
 
     if (selectedCastle) {
       placeCastle(selectedCastle, row, col);
@@ -184,14 +199,14 @@ export const useKingdomsGame = () => {
     } else if (hasSelectedStartingTile) {
       placeStartingTile(row, col);
     }
-  }, [gameState, selectedCastle, selectedTile, hasSelectedStartingTile, placeCastle, placeTile, placeStartingTile]);
+  }, [gameState, currentPlayerId, selectedCastle, selectedTile, hasSelectedStartingTile, placeCastle, placeTile, placeStartingTile]);
 
   const selectStartingTile = useCallback(() => {
     if (!gameState) return;
     
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    if (!currentPlayer.startingTile) {
-      toast.error('No starting tile available');
+    if (!currentPlayer.startingTile || currentPlayer.id !== currentPlayerId) {
+      toast.error('No starting tile available or not your turn');
       return;
     }
 
@@ -199,10 +214,16 @@ export const useKingdomsGame = () => {
     setSelectedCastle(undefined);
     setSelectedTile(undefined);
     toast.success('Starting tile selected - click an empty space to place it');
-  }, [gameState]);
+  }, [gameState, currentPlayerId]);
 
   const passTurn = useCallback(() => {
     if (!gameState) return;
+
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (currentPlayer.id !== currentPlayerId) {
+      toast.error('Not your turn');
+      return;
+    }
 
     setGameState(prev => {
       if (!prev) return prev;
@@ -216,7 +237,7 @@ export const useKingdomsGame = () => {
     setSelectedTile(undefined);
     setHasSelectedStartingTile(false);
     toast.info('Turn passed');
-  }, [gameState]);
+  }, [gameState, currentPlayerId]);
 
   const checkEpochEnd = useCallback(() => {
     if (!gameState) return;
@@ -303,10 +324,11 @@ export const useKingdomsGame = () => {
 
   return {
     gameState,
+    currentPlayerId,
     selectedCastle,
     selectedTile,
     hasSelectedStartingTile,
-    initializeGame,
+    initializeGameFromRoom,
     setSelectedCastle,
     drawAndPlaceTile,
     handleCellClick,
