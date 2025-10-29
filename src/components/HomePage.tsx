@@ -25,11 +25,12 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
 
     setIsLoading(true);
     try {
-      const { room, playerId } = createRoom(playerName.trim());
+      const { room, playerId } = await createRoom(playerName.trim());
       toast.success(`Room created! Code: ${room.code}`);
       onRoomJoined(room.code, playerId);
     } catch (error) {
       toast.error('Failed to create room');
+      console.error('Create room error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -48,13 +49,14 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
 
     setIsLoading(true);
     try {
-      const result = joinRoom(roomCode.trim(), playerName.trim());
+      const result = await joinRoom(roomCode.trim(), playerName.trim());
       if (result) {
         toast.success('Joined room successfully!');
         onRoomJoined(result.room.code, result.playerId);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to join room');
+      console.error('Join room error:', error);
     } finally {
       setIsLoading(false);
     }
