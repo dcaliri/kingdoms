@@ -11,7 +11,7 @@ import {
   BOARD_ROWS,
   BOARD_COLS
 } from '@/utils/gameLogic';
-import { saveGameState, loadGameState, subscribeToGameState } from '@/utils/supabaseGameManager';
+import { saveGameState, loadGameState, subscribeToGameState, debugListAllGames } from '@/utils/supabaseGameManager';
 import { toast } from 'sonner';
 
 export const useKingdomsGame = () => {
@@ -26,10 +26,11 @@ export const useKingdomsGame = () => {
   
   // Use refs to prevent infinite loops
   const initializationRef = useRef<boolean>(false);
-  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const updateGameState = useCallback(async (newGameState: GameState) => {
-    console.log('Updating game state:', newGameState);
+    console.log('=== UPDATING GAME STATE ===');
+    console.log('New game state:', newGameState);
     
     // Update local state immediately
     setGameState(newGameState);
@@ -38,7 +39,7 @@ export const useKingdomsGame = () => {
     if (roomId) {
       try {
         await saveGameState(roomId, newGameState);
-        console.log('Game state saved to database successfully');
+        console.log('Game state saved successfully');
       } catch (error) {
         console.error('Failed to save game state:', error);
         toast.error('Failed to sync game state');
@@ -53,7 +54,7 @@ export const useKingdomsGame = () => {
       return;
     }
 
-    console.log('=== INITIALIZING GAME ===');
+    console.log('=== INITIALIZING GAME FROM ROOM ===');
     console.log('Room:', room);
     console.log('Player ID:', playerId);
     
@@ -63,10 +64,10 @@ export const useKingdomsGame = () => {
     setIsInitializing(true);
     setLoadingAttempts(0);
 
-    // Clear any existing polling timeout
-    if (pollingTimeoutRef.current) {
-      clearTimeout(pollingTimeoutRef.current);
-      pollingTimeoutRef.current = null;
+    // Clear any existing polling
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
 
     try {
@@ -75,7 +76,7 @@ export const useKingdomsGame = () => {
       console.log('Is host:', isHost);
       
       if (isHost) {
-        console.log('HOST: Creating new game state...');
+        console.log('=== HOST CREATING GAME ===');
         
         // Host creates the game state
         const players: Player[] = room.players.map((roomPlayer) => ({
@@ -106,58 +107,77 @@ export const useKingdomsGame = () => {
           scores: {}
         };
 
-        console.log('HOST: Created initial game state:', initialGameState);
+        console.log('HOST: About to save initial game state');
         await updateGameState(initialGameState);
         initializationRef.current = false;
         toast.success('Game started!');
+        
+        // Debug: List all games after creation
+        await debugListAllGames();
       } else {
-        console.log('NON-HOST: Waiting for game state...');
+        console.log('=== NON-HOST WAITING FOR GAME ===');
         
-        // For non-host players, set up polling with a maximum number of attempts
+        // For non-host players, poll for game state
         let attempts = 0;
-        const maxAttempts = 20; // 20 seconds max
+        const maxAttempts = 30;
         
-        const pollForGameState = async () => {
+        pollingIntervalRef.current = setInterval(async () => {
           if (!initializationRef.current) {
             console.log('Initialization cancelled, stopping polling');
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
             return;
           }
 
           attempts++;
           setLoadingAttempts(attempts);
-          console.log(`Poll attempt ${attempts}/${maxAttempts}: Checking for game state...`);
+          console.log(`=== POLL ATTEMPT ${attempts}/${maxAttempts} ===`);
           
           try {
+            // Debug: List all games to see what's in the database
+            if (attempts === 1) {
+              await debugListAllGames();
+            }
+            
             const gameState = await loadGameState(room.id);
             if (gameState) {
-              console.log('Found game state via polling:', gameState);
+              console.log('=== FOUND GAME STATE VIA POLLING ===');
+              console.log('Game state:', gameState);
               setGameState(gameState);
               setIsInitializing(false);
               initializationRef.current = false;
+              
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+              }
+              
               toast.success('Game loaded!');
               return;
             }
           } catch (error) {
-            console.error('Error polling for game state:', error);
+            console.error(`Poll attempt ${attempts} error:`, error);
           }
           
-          if (attempts < maxAttempts && initializationRef.current) {
-            pollingTimeoutRef.current = setTimeout(pollForGameState, 1000);
-          } else {
-            console.error('Polling timeout or cancelled');
+          if (attempts >= maxAttempts) {
+            console.error('=== POLLING TIMEOUT ===');
             setIsInitializing(false);
             initializationRef.current = false;
-            if (attempts >= maxAttempts) {
-              toast.error('Failed to load game. Please try refreshing.');
+            
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
             }
+            
+            toast.error('Failed to load game. Please try refreshing.');
           }
-        };
-        
-        // Start polling after a short delay
-        pollingTimeoutRef.current = setTimeout(pollForGameState, 2000);
+        }, 1000);
       }
     } catch (error) {
-      console.error('Error in initializeGameFromRoom:', error);
+      console.error('=== INITIALIZATION ERROR ===');
+      console.error('Error:', error);
       setIsInitializing(false);
       initializationRef.current = false;
       toast.error('Failed to initialize game');
@@ -168,11 +188,12 @@ export const useKingdomsGame = () => {
   useEffect(() => {
     if (!roomId) return;
 
-    console.log('Setting up real-time subscription for room:', roomId);
+    console.log('=== SETTING UP REAL-TIME SUBSCRIPTION ===');
+    console.log('Room ID:', roomId);
     
     const unsubscribe = subscribeToGameState(roomId, (updatedGameState) => {
-      console.log('=== REAL-TIME UPDATE ===');
-      console.log('Received game state:', updatedGameState);
+      console.log('=== REAL-TIME UPDATE RECEIVED ===');
+      console.log('Updated game state:', updatedGameState);
       
       if (updatedGameState) {
         console.log('Processing real-time game state update');
@@ -181,9 +202,9 @@ export const useKingdomsGame = () => {
         
         // Stop any ongoing initialization
         initializationRef.current = false;
-        if (pollingTimeoutRef.current) {
-          clearTimeout(pollingTimeoutRef.current);
-          pollingTimeoutRef.current = null;
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
         }
         
         // Clear selections when it's not your turn
@@ -197,12 +218,12 @@ export const useKingdomsGame = () => {
     });
 
     return () => {
-      console.log('Cleaning up subscription and polling');
+      console.log('=== CLEANING UP SUBSCRIPTION ===');
       unsubscribe();
       initializationRef.current = false;
-      if (pollingTimeoutRef.current) {
-        clearTimeout(pollingTimeoutRef.current);
-        pollingTimeoutRef.current = null;
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
     };
   }, [roomId, currentPlayerId]);
@@ -210,10 +231,11 @@ export const useKingdomsGame = () => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      console.log('=== COMPONENT UNMOUNTING ===');
       initializationRef.current = false;
-      if (pollingTimeoutRef.current) {
-        clearTimeout(pollingTimeoutRef.current);
-        pollingTimeoutRef.current = null;
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
     };
   }, []);

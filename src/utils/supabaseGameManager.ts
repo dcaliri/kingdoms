@@ -3,27 +3,37 @@ import { GameState } from '@/types/game';
 
 export const saveGameState = async (roomId: string, gameState: GameState): Promise<void> => {
   try {
-    console.log('Saving game state to database:', { roomId, gameState });
+    console.log('=== SAVING GAME STATE ===');
+    console.log('Room ID:', roomId);
+    console.log('Game State:', gameState);
     
-    const { error } = await supabase
+    const gameData = {
+      room_id: roomId,
+      game_state: gameState,
+      current_player_index: gameState.currentPlayerIndex,
+      epoch: gameState.epoch,
+      phase: gameState.gamePhase
+    };
+    
+    console.log('Data to save:', gameData);
+    
+    const { data, error } = await supabase
       .from('games')
-      .upsert({
-        room_id: roomId,
-        game_state: gameState,
-        current_player_index: gameState.currentPlayerIndex,
-        epoch: gameState.epoch,
-        phase: gameState.gamePhase
-      }, {
+      .upsert(gameData, {
         onConflict: 'room_id'
-      });
+      })
+      .select();
 
     if (error) {
-      console.error('Error saving game state:', error);
+      console.error('=== SAVE ERROR ===');
+      console.error('Error details:', error);
       throw error;
     }
 
-    console.log('Game state saved successfully');
+    console.log('=== SAVE SUCCESS ===');
+    console.log('Saved data:', data);
   } catch (error) {
+    console.error('=== SAVE FAILED ===');
     console.error('Failed to save game state:', error);
     throw error;
   }
@@ -31,7 +41,8 @@ export const saveGameState = async (roomId: string, gameState: GameState): Promi
 
 export const loadGameState = async (roomId: string): Promise<GameState | null> => {
   try {
-    console.log('Loading game state from database for room:', roomId);
+    console.log('=== LOADING GAME STATE ===');
+    console.log('Room ID:', roomId);
     
     const { data, error } = await supabase
       .from('games')
@@ -39,31 +50,36 @@ export const loadGameState = async (roomId: string): Promise<GameState | null> =
       .eq('room_id', roomId)
       .single();
 
+    console.log('Load query result:', { data, error });
+
     if (error) {
       if (error.code === 'PGRST116') {
-        // No game state found
-        console.log('No game state found for room:', roomId);
+        console.log('=== NO GAME STATE FOUND ===');
         return null;
       }
-      console.error('Error loading game state:', error);
+      console.error('=== LOAD ERROR ===');
+      console.error('Error details:', error);
       throw error;
     }
 
     if (!data) {
-      console.log('No data returned for room:', roomId);
+      console.log('=== NO DATA RETURNED ===');
       return null;
     }
 
-    console.log('Game state loaded successfully:', data);
+    console.log('=== LOAD SUCCESS ===');
+    console.log('Loaded game state:', data.game_state);
     return data.game_state as GameState;
   } catch (error) {
+    console.error('=== LOAD FAILED ===');
     console.error('Failed to load game state:', error);
     return null;
   }
 };
 
 export const subscribeToGameState = (roomId: string, callback: (gameState: GameState | null) => void) => {
-  console.log('Setting up game state subscription for room:', roomId);
+  console.log('=== SETTING UP SUBSCRIPTION ===');
+  console.log('Room ID:', roomId);
   
   const channel = supabase
     .channel(`game-${roomId}`)
@@ -76,19 +92,24 @@ export const subscribeToGameState = (roomId: string, callback: (gameState: GameS
         filter: `room_id=eq.${roomId}`
       },
       async (payload) => {
-        console.log('Game state change detected:', payload);
+        console.log('=== REAL-TIME EVENT ===');
+        console.log('Event type:', payload.eventType);
+        console.log('Payload:', payload);
+        
         if (payload.new && payload.new.game_state) {
           const gameState = payload.new.game_state as GameState;
-          console.log('Calling callback with game state:', gameState);
+          console.log('=== CALLING CALLBACK ===');
+          console.log('Game state:', gameState);
           callback(gameState);
         } else if (payload.eventType === 'DELETE') {
-          console.log('Game state deleted');
+          console.log('=== GAME DELETED ===');
           callback(null);
         }
       }
     )
     .subscribe((status) => {
-      console.log('Game subscription status:', status);
+      console.log('=== SUBSCRIPTION STATUS ===');
+      console.log('Status:', status);
       if (status === 'SUBSCRIBED') {
         console.log('Successfully subscribed to game state changes');
       } else if (status === 'CHANNEL_ERROR') {
@@ -97,7 +118,8 @@ export const subscribeToGameState = (roomId: string, callback: (gameState: GameS
     });
 
   return () => {
-    console.log('Unsubscribing from game state:', roomId);
+    console.log('=== UNSUBSCRIBING ===');
+    console.log('Room ID:', roomId);
     supabase.removeChannel(channel);
   };
 };
@@ -105,7 +127,8 @@ export const subscribeToGameState = (roomId: string, callback: (gameState: GameS
 // Add a direct check function for debugging
 export const checkGameStateExists = async (roomId: string): Promise<boolean> => {
   try {
-    console.log('Checking if game state exists for room:', roomId);
+    console.log('=== CHECKING GAME STATE EXISTS ===');
+    console.log('Room ID:', roomId);
     
     const { data, error } = await supabase
       .from('games')
@@ -113,16 +136,40 @@ export const checkGameStateExists = async (roomId: string): Promise<boolean> => 
       .eq('room_id', roomId)
       .single();
 
+    console.log('Exists check result:', { data, error });
+
     if (error && error.code !== 'PGRST116') {
       console.error('Error checking game state:', error);
       return false;
     }
 
     const exists = !!data;
+    console.log('=== EXISTS RESULT ===');
     console.log('Game state exists:', exists);
     return exists;
   } catch (error) {
+    console.error('=== EXISTS CHECK FAILED ===');
     console.error('Failed to check game state:', error);
     return false;
+  }
+};
+
+// Add a function to list all games for debugging
+export const debugListAllGames = async (): Promise<void> => {
+  try {
+    console.log('=== DEBUG: LISTING ALL GAMES ===');
+    
+    const { data, error } = await supabase
+      .from('games')
+      .select('*');
+
+    if (error) {
+      console.error('Error listing games:', error);
+      return;
+    }
+
+    console.log('All games in database:', data);
+  } catch (error) {
+    console.error('Failed to list games:', error);
   }
 };
