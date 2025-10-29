@@ -33,12 +33,18 @@ const GameLobby: React.FC<GameLobbyProps> = ({
       if (currentRoom) {
         setRoom(currentRoom);
         setLastUpdate(Date.now());
+        
+        // Check if game should start after refresh
+        if (currentRoom.status === 'playing') {
+          console.log('Game is playing after refresh, transitioning...');
+          onGameStart(currentRoom);
+        }
       }
     } catch (error) {
       console.error('Error refreshing room:', error);
       toast.error('Failed to refresh room');
     }
-  }, [roomCode]);
+  }, [roomCode, onGameStart]);
 
   useEffect(() => {
     console.log('GameLobby mounted with:', { roomCode, playerId });
@@ -52,6 +58,12 @@ const GameLobby: React.FC<GameLobbyProps> = ({
         if (currentRoom) {
           setRoom(currentRoom);
           setLastUpdate(Date.now());
+          
+          // Check if game is already playing
+          if (currentRoom.status === 'playing') {
+            console.log('Game already playing, transitioning immediately...');
+            onGameStart(currentRoom);
+          }
         }
       } catch (error) {
         console.error('Error loading room:', error);
@@ -70,7 +82,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
         
         // Check if game started
         if (updatedRoom.status === 'playing') {
-          console.log('Game started, transitioning...');
+          console.log('Game started via subscription, transitioning...');
           onGameStart(updatedRoom);
         }
       }
@@ -82,8 +94,8 @@ const GameLobby: React.FC<GameLobbyProps> = ({
       setIsConnected(navigator.onLine);
     }, 5000);
 
-    // Auto-refresh every 10 seconds as backup
-    const autoRefreshInterval = setInterval(refreshRoom, 10000);
+    // Auto-refresh every 5 seconds as backup (more frequent for game start)
+    const autoRefreshInterval = setInterval(refreshRoom, 5000);
 
     return () => {
       console.log('GameLobby unmounting, cleaning up...');
@@ -126,12 +138,32 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   };
 
   const handleStartGame = async () => {
-    if (isLoading) return;
+    if (isLoading || !room) return;
+    
+    console.log('Starting game...', { hostId: playerId, roomCode, roomStatus: room.status });
     
     setIsLoading(true);
     try {
-      await startGame(playerId, roomCode);
-      toast.success('Game starting!');
+      const updatedRoom = await startGame(playerId, roomCode);
+      console.log('Start game result:', updatedRoom);
+      
+      if (updatedRoom) {
+        toast.success('Game starting!');
+        setRoom(updatedRoom);
+        
+        // Force transition to game if status is playing
+        if (updatedRoom.status === 'playing') {
+          console.log('Game started successfully, transitioning...');
+          onGameStart(updatedRoom);
+        } else {
+          console.log('Game not started, room status:', updatedRoom.status);
+          // Force refresh to get latest state
+          setTimeout(refreshRoom, 1000);
+        }
+      } else {
+        console.error('Start game returned null');
+        toast.error('Failed to start game - no room returned');
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to start game');
       console.error('Start game error:', error);
@@ -322,6 +354,11 @@ const GameLobby: React.FC<GameLobbyProps> = ({
             >
               {isLoading ? 'Leaving...' : 'Leave Room'}
             </Button>
+
+            {/* Debug info */}
+            <div className="text-xs text-gray-400 p-2 bg-gray-50 rounded">
+              Debug: Host={isHost ? 'Yes' : 'No'}, CanStart={canStartGame ? 'Yes' : 'No'}, Status={room.status}
+            </div>
           </CardContent>
         </Card>
       </div>
