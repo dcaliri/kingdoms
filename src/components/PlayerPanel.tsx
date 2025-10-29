@@ -3,6 +3,7 @@ import { Player, Castle } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import TilePreview from './TilePreview';
 
 interface PlayerPanelProps {
   player: Player;
@@ -92,20 +93,18 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
         <div>
           <h4 className="text-sm font-semibold mb-2">Starting Tile</h4>
           {player.startingTile ? (
-            <Button
-              variant={hasSelectedStartingTile ? "default" : "outline"}
-              size="sm"
-              onClick={onStartingTileSelect}
-              disabled={!isCurrentPlayer}
-              className="text-xs"
-            >
-              {player.startingTile.name}
-              {player.startingTile.value !== 0 && (
-                <span className="ml-1">
-                  ({player.startingTile.value > 0 ? '+' : ''}{player.startingTile.value})
-                </span>
-              )}
-            </Button>
+            <div className="flex items-center gap-3">
+              <TilePreview tile={player.startingTile} />
+              <Button
+                variant={hasSelectedStartingTile ? "default" : "outline"}
+                size="sm"
+                onClick={onStartingTileSelect}
+                disabled={!isCurrentPlayer}
+                className="text-xs"
+              >
+                Place Tile
+              </Button>
+            </div>
           ) : (
             <span className="text-xs text-gray-500">No starting tile</span>
           )}

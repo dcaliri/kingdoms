@@ -1,8 +1,9 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { GameState, Player } from '@/types/game';
+import { GameState, Player, Tile } from '@/types/game';
 import { canPlayerAct } from '@/utils/gameLogic';
+import TilePreview from './TilePreview';
 
 interface GameActionsProps {
   gameState: GameState;
@@ -10,7 +11,7 @@ interface GameActionsProps {
   onDrawTile: () => void;
   onPass: () => void;
   selectedCastle?: any;
-  selectedTile?: any;
+  selectedTile?: Tile;
   hasSelectedStartingTile: boolean;
 }
 
@@ -39,7 +40,7 @@ const GameActions: React.FC<GameActionsProps> = ({
 
         <Button
           onClick={onDrawTile}
-          disabled={!hasTilesInSupply || !hasEmptySpaces}
+          disabled={!hasTilesInSupply || !hasEmptySpaces || selectedTile}
           className="w-full"
           variant="outline"
         >
@@ -48,6 +49,18 @@ const GameActions: React.FC<GameActionsProps> = ({
             ({gameState.tileSupply.length} tiles left)
           </span>
         </Button>
+
+        {/* Show drawn tile preview */}
+        {selectedTile && (
+          <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+            <div className="text-sm font-semibold mb-2 text-blue-800">
+              Drawn Tile - Click an empty space to place it:
+            </div>
+            <div className="flex justify-center">
+              <TilePreview tile={selectedTile} />
+            </div>
+          </div>
+        )}
 
         <div className="text-xs text-gray-500 space-y-1">
           <div>• Select a castle from your panel, then click an empty board space</div>
