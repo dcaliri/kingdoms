@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { GameState, Player, Castle, Tile, PlayerColor, GameAction } from '@/types/game';
 import { 
   createInitialTiles, 
@@ -201,7 +201,7 @@ export const useKingdomsGame = () => {
     toast.success('Starting tile selected - click an empty space to place it');
   }, [gameState]);
 
-  const passturn = useCallback(() => {
+  const passTurn = useCallback(() => {
     if (!gameState) return;
 
     setGameState(prev => {
