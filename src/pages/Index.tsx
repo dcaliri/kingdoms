@@ -9,6 +9,9 @@ import GameActions from '@/components/GameActions';
 import ScoreDisplay from '@/components/ScoreDisplay';
 import { useGamePlay } from '@/hooks/useGamePlay';
 import { supabase } from '@/integrations/supabase/client';
+import { getRoom, getGameState } from '@/utils/supabaseRoomManager';
+import { saveGameSession, loadGameSession, clearGameSession, updateSessionState } from '@/utils/sessionManager';
+import { toast } from 'sonner';
 
 type AppState = 'home' | 'lobby' | 'playing';
 
@@ -18,6 +21,7 @@ const Index = () => {
   const [playerId, setPlayerId] = useState('');
   const [room, setRoom] = useState<Room | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [isRestoring, setIsRestoring] = useState(true);
 
   const {
     selectedCastle,
@@ -30,6 +34,81 @@ const Index = () => {
     passTurn
   } = useGamePlay(gameState, playerId, room?.id || '', setGameState);
 
+  // Restore session on page load
+  useEffect(() => {
+    const restoreSession = async () => {
+      console.log('=== ATTEMPTING SESSION RESTORATION ===');
+      
+      const session = loadGameSession();
+      if (!session) {
+        console.log('No session to restore');
+        setIsRestoring(false);
+        return;
+      }
+
+      console.log('Restoring session:', session);
+      
+      try {
+        // Restore basic session data
+        setRoomCode(session.roomCode);
+        setPlayerId(session.playerId);
+        
+        // Get current room data
+        const currentRoom = await getRoom(session.roomCode);
+        if (!currentRoom) {
+          console.log('Room no longer exists, clearing session');
+          clearGameSession();
+          setIsRestoring(false);
+          toast.error('Room no longer exists');
+          return;
+        }
+
+        // Check if player is still in the room
+        const playerInRoom = currentRoom.players.find(p => p.id === session.playerId);
+        if (!playerInRoom) {
+          console.log('Player no longer in room, clearing session');
+          clearGameSession();
+          setIsRestoring(false);
+          toast.error('You are no longer in this room');
+          return;
+        }
+
+        setRoom(currentRoom);
+
+        // Restore appropriate app state
+        if (session.appState === 'playing' || currentRoom.status === 'playing') {
+          // Try to get game state
+          const currentGameState = await getGameState(currentRoom.id);
+          if (currentGameState) {
+            console.log('Restored game state:', currentGameState);
+            setGameState(currentGameState);
+            setAppState('playing');
+            updateSessionState('playing');
+            toast.success('Game restored successfully!');
+          } else {
+            console.log('No game state found, going to lobby');
+            setAppState('lobby');
+            updateSessionState('lobby');
+            toast.info('Rejoined room lobby');
+          }
+        } else {
+          // Go to lobby
+          setAppState('lobby');
+          updateSessionState('lobby');
+          toast.info('Rejoined room lobby');
+        }
+      } catch (error) {
+        console.error('Failed to restore session:', error);
+        clearGameSession();
+        toast.error('Failed to restore session');
+      } finally {
+        setIsRestoring(false);
+      }
+    };
+
+    restoreSession();
+  }, []);
+
   // Set up real-time subscription for game state updates
   useEffect(() => {
     if (!room?.id || appState !== 'playing') return;
@@ -39,11 +118,11 @@ const Index = () => {
     console.log('Player ID:', playerId);
 
     const channel = supabase
-      .channel(`game-state-${room.id}-${playerId}`) // Make channel unique per player
+      .channel(`game-state-${room.id}-${playerId}`)
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to all events
+          event: '*',
           schema: 'public',
           table: 'games',
           filter: `room_id=eq.${room.id}`
@@ -52,54 +131,47 @@ const Index = () => {
           console.log('=== GAME STATE REAL-TIME UPDATE ===');
           console.log('Event type:', payload.eventType);
           console.log('Player ID:', playerId);
-          console.log('Full payload:', payload);
           
-          if (payload.eventType === 'UPDATE' && payload.new && payload.new.game_state) {
+          if (payload.new && payload.new.game_state) {
             const updatedGameState = payload.new.game_state as GameState;
             console.log('=== UPDATING GAME STATE FROM REAL-TIME ===');
             console.log('Current player index:', updatedGameState.currentPlayerIndex);
             console.log('Current player:', updatedGameState.players[updatedGameState.currentPlayerIndex]?.name);
-            console.log('Board state:', updatedGameState.board);
             setGameState(updatedGameState);
-          } else if (payload.eventType === 'INSERT' && payload.new && payload.new.game_state) {
-            // Handle initial game creation
-            const newGameState = payload.new.game_state as GameState;
-            console.log('=== NEW GAME STATE INSERTED ===');
-            console.log('Game state:', newGameState);
-            setGameState(newGameState);
           }
         }
       )
       .subscribe((status, err) => {
         console.log('=== GAME STATE SUBSCRIPTION STATUS ===');
         console.log('Status:', status);
-        console.log('Player ID:', playerId);
         if (err) {
           console.error('Subscription error:', err);
-        }
-        
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Successfully subscribed to game state changes');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Error subscribing to game state changes');
-        } else if (status === 'TIMED_OUT') {
-          console.error('⏰ Subscription timed out');
-        } else if (status === 'CLOSED') {
-          console.log('🔒 Subscription closed');
         }
       });
 
     return () => {
       console.log('=== CLEANING UP GAME STATE SUBSCRIPTION ===');
-      console.log('Player ID:', playerId);
       supabase.removeChannel(channel);
     };
   }, [room?.id, appState, playerId]);
 
   const handleRoomJoined = (code: string, id: string) => {
+    console.log('=== ROOM JOINED ===');
+    console.log('Room code:', code);
+    console.log('Player ID:', id);
+    
     setRoomCode(code);
     setPlayerId(id);
     setAppState('lobby');
+    
+    // Save session
+    saveGameSession({
+      appState: 'lobby',
+      roomCode: code,
+      playerId: id,
+      roomId: '', // Will be updated when we get room data
+      playerName: '' // Will be updated when we get room data
+    });
   };
 
   const handleGameStart = (roomData: Room, initialGameState: GameState) => {
@@ -111,15 +183,42 @@ const Index = () => {
     setRoom(roomData);
     setGameState(initialGameState);
     setAppState('playing');
+    
+    // Update session
+    const playerInRoom = roomData.players.find(p => p.id === playerId);
+    saveGameSession({
+      appState: 'playing',
+      roomCode: roomData.code,
+      playerId: playerId,
+      roomId: roomData.id,
+      playerName: playerInRoom?.name || ''
+    });
   };
 
   const handleLeaveRoom = () => {
+    console.log('=== LEAVING ROOM ===');
+    
     setAppState('home');
     setRoomCode('');
     setPlayerId('');
     setRoom(null);
     setGameState(null);
+    
+    // Clear session
+    clearGameSession();
   };
+
+  // Show loading screen while restoring session
+  if (isRestoring) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p>Restoring your game session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (appState === 'home') {
     return <HomePage onRoomJoined={handleRoomJoined} />;
@@ -169,7 +268,10 @@ const Index = () => {
               ))}
           </div>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              clearGameSession();
+              window.location.reload();
+            }}
             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg"
           >
             Play Again

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Copy, Users, Crown, Check, X, Wifi, RefreshCw } from 'lucide-react';
 import { Room } from '@/types/room';
 import { getRoom, setPlayerReady, startGame, leaveRoom, subscribeToRoom, getGameState } from '@/utils/supabaseRoomManager';
+import { saveGameSession, updateSessionState } from '@/utils/sessionManager';
 import { toast } from 'sonner';
 
 interface GameLobbyProps {
@@ -34,6 +35,18 @@ const GameLobby: React.FC<GameLobbyProps> = ({
         setRoom(currentRoom);
         setLastUpdate(Date.now());
         
+        // Update session with room data
+        const playerInRoom = currentRoom.players.find(p => p.id === playerId);
+        if (playerInRoom) {
+          saveGameSession({
+            appState: 'lobby',
+            roomCode: currentRoom.code,
+            playerId: playerId,
+            roomId: currentRoom.id,
+            playerName: playerInRoom.name
+          });
+        }
+        
         // Check if game has started
         if (currentRoom.status === 'playing') {
           console.log('Game is playing after refresh, getting game state...');
@@ -48,7 +61,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
       console.error('Error refreshing room:', error);
       toast.error('Failed to refresh room');
     }
-  }, [roomCode, onGameStart]);
+  }, [roomCode, onGameStart, playerId]);
 
   useEffect(() => {
     console.log('GameLobby mounted with:', { roomCode, playerId });
@@ -62,6 +75,18 @@ const GameLobby: React.FC<GameLobbyProps> = ({
         if (currentRoom) {
           setRoom(currentRoom);
           setLastUpdate(Date.now());
+          
+          // Save session data
+          const playerInRoom = currentRoom.players.find(p => p.id === playerId);
+          if (playerInRoom) {
+            saveGameSession({
+              appState: 'lobby',
+              roomCode: currentRoom.code,
+              playerId: playerId,
+              roomId: currentRoom.id,
+              playerName: playerInRoom.name
+            });
+          }
           
           // Check if game is already playing
           if (currentRoom.status === 'playing') {
@@ -87,6 +112,18 @@ const GameLobby: React.FC<GameLobbyProps> = ({
       if (updatedRoom) {
         setRoom(updatedRoom);
         setLastUpdate(Date.now());
+        
+        // Update session data
+        const playerInRoom = updatedRoom.players.find(p => p.id === playerId);
+        if (playerInRoom) {
+          saveGameSession({
+            appState: 'lobby',
+            roomCode: updatedRoom.code,
+            playerId: playerId,
+            roomId: updatedRoom.id,
+            playerName: playerInRoom.name
+          });
+        }
         
         // Check if game started
         if (updatedRoom.status === 'playing') {
