@@ -92,6 +92,25 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
     );
   };
 
+  // Helper function to check if a position is adjacent to a wizard
+  const isAdjacentToWizard = (board: any[][], row: number, col: number): boolean => {
+    const directions = [
+      [-1, 0], [1, 0], [0, -1], [0, 1] // up, down, left, right
+    ];
+    
+    return directions.some(([dr, dc]) => {
+      const newRow = row + dr;
+      const newCol = col + dc;
+      
+      if (newRow >= 0 && newRow < 5 && newCol >= 0 && newCol < 6) {
+        const cell = board[newRow][newCol];
+        return cell && 'type' in cell && cell.type === 'wizard';
+      }
+      
+      return false;
+    });
+  };
+
   // Calculate detailed scores for display using the same logic as main calculation
   const calculateDetailedScores = () => {
     const playerDetails: { [playerId: string]: { rows: number[], columns: number[], total: number } } = {};
@@ -144,25 +163,31 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
     
     if (mountainIndices.length === 0) {
       // Score entire row
-      return calculateSegmentScore(rowCells, colorToPlayerId);
+      return calculateSegmentScore(rowCells, board, row, 'row', colorToPlayerId, 0);
     } else {
       // Score segments separated by mountains
-      const segments: any[][] = [];
+      const segments: { cells: any[], startIndex: number }[] = [];
       let start = 0;
       
       mountainIndices.forEach((mountainIndex: number) => {
         if (start < mountainIndex) {
-          segments.push(rowCells.slice(start, mountainIndex));
+          segments.push({
+            cells: rowCells.slice(start, mountainIndex),
+            startIndex: start
+          });
         }
         start = mountainIndex + 1;
       });
       
       if (start < rowCells.length) {
-        segments.push(rowCells.slice(start));
+        segments.push({
+          cells: rowCells.slice(start),
+          startIndex: start
+        });
       }
       
       segments.forEach((segment) => {
-        const segmentScores = calculateSegmentScore(segment, colorToPlayerId);
+        const segmentScores = calculateSegmentScore(segment.cells, board, row, 'row', colorToPlayerId, segment.startIndex);
         Object.entries(segmentScores).forEach(([playerId, score]) => {
           scores[playerId] = (scores[playerId] || 0) + score;
         });
@@ -184,25 +209,31 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
     
     if (mountainIndices.length === 0) {
       // Score entire column
-      return calculateSegmentScore(colCells, colorToPlayerId);
+      return calculateSegmentScore(colCells, board, col, 'column', colorToPlayerId, 0);
     } else {
       // Score segments separated by mountains
-      const segments: any[][] = [];
+      const segments: { cells: any[], startIndex: number }[] = [];
       let start = 0;
       
       mountainIndices.forEach((mountainIndex: number) => {
         if (start < mountainIndex) {
-          segments.push(colCells.slice(start, mountainIndex));
+          segments.push({
+            cells: colCells.slice(start, mountainIndex),
+            startIndex: start
+          });
         }
         start = mountainIndex + 1;
       });
       
       if (start < colCells.length) {
-        segments.push(colCells.slice(start));
+        segments.push({
+          cells: colCells.slice(start),
+          startIndex: start
+        });
       }
       
       segments.forEach((segment) => {
-        const segmentScores = calculateSegmentScore(segment, colorToPlayerId);
+        const segmentScores = calculateSegmentScore(segment.cells, board, col, 'column', colorToPlayerId, segment.startIndex);
         Object.entries(segmentScores).forEach(([playerId, score]) => {
           scores[playerId] = (scores[playerId] || 0) + score;
         });
@@ -212,8 +243,15 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
     }
   };
 
-  // Segment score calculation
-  const calculateSegmentScore = (segment: any[], colorToPlayerId: { [color: string]: string }) => {
+  // Segment score calculation with wizard bonus
+  const calculateSegmentScore = (
+    segment: any[], 
+    board: any[][], 
+    lineIndex: number, 
+    lineType: 'row' | 'column', 
+    colorToPlayerId: { [color: string]: string },
+    segmentStartIndex: number = 0
+  ) => {
     const scores: { [playerId: string]: number } = {};
     
     // Check for dragon - cancels all resource tiles
@@ -238,13 +276,24 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
       baseValue *= 2;
     }
 
-    // Calculate castle ranks for each player
+    // Calculate castle ranks for each player WITH WIZARD BONUS
     const playerCastleRanks: { [playerId: string]: number } = {};
-    segment.forEach((cell: any) => {
+    segment.forEach((cell: any, segmentIndex: number) => {
       if (cell && 'rank' in cell) {
+        let effectiveRank = cell.rank;
+        
+        // Check for wizard bonus (orthogonally adjacent)
+        const actualIndex = segmentStartIndex + segmentIndex;
+        const row = lineType === 'row' ? lineIndex : actualIndex;
+        const col = lineType === 'row' ? actualIndex : lineIndex;
+        
+        if (isAdjacentToWizard(board, row, col)) {
+          effectiveRank += 1;
+        }
+        
         const playerId = colorToPlayerId[cell.color];
         if (playerId) {
-          playerCastleRanks[playerId] = (playerCastleRanks[playerId] || 0) + cell.rank;
+          playerCastleRanks[playerId] = (playerCastleRanks[playerId] || 0) + effectiveRank;
         }
       }
     });

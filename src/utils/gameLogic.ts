@@ -349,6 +349,7 @@ const calculateSegmentScore = (
       const row = lineType === 'row' ? lineIndex : actualIndex;
       const col = lineType === 'row' ? actualIndex : lineIndex;
       
+      console.log(`    Checking wizard bonus for castle at (${row}, ${col})`);
       if (isAdjacentToWizard(board, row, col)) {
         effectiveRank += 1;
         console.log(`    Castle at (${row}, ${col}) gets wizard bonus, rank ${castle.rank} -> ${effectiveRank}`);
@@ -380,15 +381,24 @@ const isAdjacentToWizard = (board: (Castle | Tile | null)[][], row: number, col:
     [-1, 0], [1, 0], [0, -1], [0, 1] // up, down, left, right
   ];
   
-  return directions.some(([dr, dc]) => {
+  console.log(`      Checking wizard adjacency for position (${row}, ${col})`);
+  
+  const isAdjacent = directions.some(([dr, dc]) => {
     const newRow = row + dr;
     const newCol = col + dc;
     
     if (newRow >= 0 && newRow < BOARD_ROWS && newCol >= 0 && newCol < BOARD_COLS) {
       const cell = board[newRow][newCol];
-      return cell && 'type' in cell && (cell as Tile).type === 'wizard';
+      const hasWizard = cell && 'type' in cell && (cell as Tile).type === 'wizard';
+      if (hasWizard) {
+        console.log(`      Found wizard at adjacent position (${newRow}, ${newCol})`);
+      }
+      return hasWizard;
     }
     
     return false;
   });
+  
+  console.log(`      Wizard adjacent: ${isAdjacent}`);
+  return isAdjacent;
 };
