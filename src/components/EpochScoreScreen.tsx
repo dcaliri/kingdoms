@@ -92,12 +92,14 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
     );
   };
 
-  // Calculate detailed scores for display
+  // Calculate detailed scores for display using the same logic as main calculation
   const calculateDetailedScores = () => {
     const playerDetails: { [playerId: string]: { rows: number[], columns: number[], total: number } } = {};
     
-    // Initialize player details
+    // Create color to player ID mapping
+    const colorToPlayerId: { [color: string]: string } = {};
     gameState.players.forEach(player => {
+      colorToPlayerId[player.color] = player.id;
       playerDetails[player.id] = {
         rows: new Array(5).fill(0),
         columns: new Array(6).fill(0),
@@ -105,9 +107,9 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
       };
     });
 
-    // Calculate row scores
+    // Calculate row scores with proper mountain handling
     for (let row = 0; row < 5; row++) {
-      const rowScores = calculateRowScore(gameState.board, row);
+      const rowScores = calculateRowScore(gameState.board, row, colorToPlayerId);
       Object.entries(rowScores).forEach(([playerId, score]) => {
         if (playerDetails[playerId]) {
           playerDetails[playerId].rows[row] = score;
@@ -116,9 +118,9 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
       });
     }
 
-    // Calculate column scores
+    // Calculate column scores with proper mountain handling
     for (let col = 0; col < 6; col++) {
-      const colScores = calculateColumnScore(gameState.board, col);
+      const colScores = calculateColumnScore(gameState.board, col, colorToPlayerId);
       Object.entries(colScores).forEach(([playerId, score]) => {
         if (playerDetails[playerId]) {
           playerDetails[playerId].columns[col] = score;
@@ -130,71 +132,99 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
     return playerDetails;
   };
 
-  // Simplified score calculation functions for display
-  const calculateRowScore = (board: any[][], row: number) => {
+  // Row score calculation with mountain segment handling
+  const calculateRowScore = (board: any[][], row: number, colorToPlayerId: { [color: string]: string }) => {
     const scores: { [playerId: string]: number } = {};
     const rowCells = board[row];
     
-    // Create color to player ID mapping
-    const colorToPlayerId: { [color: string]: string } = {};
-    gameState.players.forEach(player => {
-      colorToPlayerId[player.color] = player.id;
-    });
-
-    // Calculate base value from tiles
-    let baseValue = 0;
-    const hasDragon = rowCells.some((cell: any) => cell && 'type' in cell && cell.type === 'dragon');
-    const hasGoldMine = rowCells.some((cell: any) => cell && 'type' in cell && cell.type === 'goldmine');
+    // Find mountains to split the row
+    const mountainIndices = rowCells
+      .map((cell: any, index: number) => cell && 'type' in cell && cell.type === 'mountain' ? index : -1)
+      .filter((index: number) => index !== -1);
     
-    rowCells.forEach((cell: any) => {
-      if (cell && 'type' in cell) {
-        if (cell.type === 'resource' && !hasDragon) {
-          baseValue += cell.value;
-        } else if (cell.type === 'hazard') {
-          baseValue += cell.value;
+    if (mountainIndices.length === 0) {
+      // Score entire row
+      return calculateSegmentScore(rowCells, colorToPlayerId);
+    } else {
+      // Score segments separated by mountains
+      const segments: any[][] = [];
+      let start = 0;
+      
+      mountainIndices.forEach((mountainIndex: number) => {
+        if (start < mountainIndex) {
+          segments.push(rowCells.slice(start, mountainIndex));
         }
+        start = mountainIndex + 1;
+      });
+      
+      if (start < rowCells.length) {
+        segments.push(rowCells.slice(start));
       }
-    });
-
-    if (hasGoldMine) {
-      baseValue *= 2;
+      
+      segments.forEach((segment) => {
+        const segmentScores = calculateSegmentScore(segment, colorToPlayerId);
+        Object.entries(segmentScores).forEach(([playerId, score]) => {
+          scores[playerId] = (scores[playerId] || 0) + score;
+        });
+      });
+      
+      return scores;
     }
-
-    // Calculate castle ranks for each player
-    const playerCastleRanks: { [playerId: string]: number } = {};
-    rowCells.forEach((cell: any) => {
-      if (cell && 'rank' in cell) {
-        const playerId = colorToPlayerId[cell.color];
-        if (playerId) {
-          playerCastleRanks[playerId] = (playerCastleRanks[playerId] || 0) + cell.rank;
-        }
-      }
-    });
-
-    // Calculate final scores
-    Object.entries(playerCastleRanks).forEach(([playerId, totalRank]) => {
-      scores[playerId] = baseValue * totalRank;
-    });
-
-    return scores;
   };
 
-  const calculateColumnScore = (board: any[][], col: number) => {
+  // Column score calculation with mountain segment handling
+  const calculateColumnScore = (board: any[][], col: number, colorToPlayerId: { [color: string]: string }) => {
     const scores: { [playerId: string]: number } = {};
     const colCells = board.map(row => row[col]);
     
-    // Create color to player ID mapping
-    const colorToPlayerId: { [color: string]: string } = {};
-    gameState.players.forEach(player => {
-      colorToPlayerId[player.color] = player.id;
-    });
+    // Find mountains to split the column
+    const mountainIndices = colCells
+      .map((cell: any, index: number) => cell && 'type' in cell && cell.type === 'mountain' ? index : -1)
+      .filter((index: number) => index !== -1);
+    
+    if (mountainIndices.length === 0) {
+      // Score entire column
+      return calculateSegmentScore(colCells, colorToPlayerId);
+    } else {
+      // Score segments separated by mountains
+      const segments: any[][] = [];
+      let start = 0;
+      
+      mountainIndices.forEach((mountainIndex: number) => {
+        if (start < mountainIndex) {
+          segments.push(colCells.slice(start, mountainIndex));
+        }
+        start = mountainIndex + 1;
+      });
+      
+      if (start < colCells.length) {
+        segments.push(colCells.slice(start));
+      }
+      
+      segments.forEach((segment) => {
+        const segmentScores = calculateSegmentScore(segment, colorToPlayerId);
+        Object.entries(segmentScores).forEach(([playerId, score]) => {
+          scores[playerId] = (scores[playerId] || 0) + score;
+        });
+      });
+      
+      return scores;
+    }
+  };
 
+  // Segment score calculation
+  const calculateSegmentScore = (segment: any[], colorToPlayerId: { [color: string]: string }) => {
+    const scores: { [playerId: string]: number } = {};
+    
+    // Check for dragon - cancels all resource tiles
+    const hasDragon = segment.some((cell: any) => cell && 'type' in cell && cell.type === 'dragon');
+    
+    // Check for gold mine - doubles all tile values
+    const hasGoldMine = segment.some((cell: any) => cell && 'type' in cell && cell.type === 'goldmine');
+    
     // Calculate base value from tiles
     let baseValue = 0;
-    const hasDragon = colCells.some((cell: any) => cell && 'type' in cell && cell.type === 'dragon');
-    const hasGoldMine = colCells.some((cell: any) => cell && 'type' in cell && cell.type === 'goldmine');
-    
-    colCells.forEach((cell: any) => {
+    segment.forEach((cell: any) => {
       if (cell && 'type' in cell) {
         if (cell.type === 'resource' && !hasDragon) {
           baseValue += cell.value;
@@ -210,7 +240,7 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
 
     // Calculate castle ranks for each player
     const playerCastleRanks: { [playerId: string]: number } = {};
-    colCells.forEach((cell: any) => {
+    segment.forEach((cell: any) => {
       if (cell && 'rank' in cell) {
         const playerId = colorToPlayerId[cell.color];
         if (playerId) {
@@ -320,7 +350,11 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
                       <strong>Rows:</strong>
                       <div className="grid grid-cols-5 gap-1 mt-1">
                         {detailedScores[player.id]?.rows.map((score, index) => (
-                          <div key={index} className="text-center p-1 bg-gray-100 rounded text-xs">
+                          <div key={index} className={`text-center p-1 rounded text-xs ${
+                            score > 0 ? 'bg-green-100 text-green-800' :
+                            score < 0 ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
                             R{index + 1}: {score}
                           </div>
                         ))}
@@ -331,7 +365,11 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
                       <strong>Columns:</strong>
                       <div className="grid grid-cols-6 gap-1 mt-1">
                         {detailedScores[player.id]?.columns.map((score, index) => (
-                          <div key={index} className="text-center p-1 bg-gray-100 rounded text-xs">
+                          <div key={index} className={`text-center p-1 rounded text-xs ${
+                            score > 0 ? 'bg-green-100 text-green-800' :
+                            score < 0 ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
                             C{index + 1}: {score}
                           </div>
                         ))}
@@ -342,6 +380,9 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
                       <strong className="text-green-600">
                         Total: {epochScores[player.id] || 0} points
                       </strong>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Calculated: {detailedScores[player.id]?.total || 0}
+                      </div>
                     </div>
                   </div>
                 </div>

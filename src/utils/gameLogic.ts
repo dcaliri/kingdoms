@@ -203,24 +203,30 @@ const calculateRowScore = (board: (Castle | Tile | null)[][], row: number, color
     return segmentScores;
   } else {
     // Score segments separated by mountains
-    const segments: (Castle | Tile | null)[][] = [];
+    const segments: { cells: (Castle | Tile | null)[], startIndex: number }[] = [];
     let start = 0;
     
     mountainIndices.forEach(mountainIndex => {
       if (start < mountainIndex) {
-        segments.push(rowCells.slice(start, mountainIndex));
+        segments.push({
+          cells: rowCells.slice(start, mountainIndex),
+          startIndex: start
+        });
       }
       start = mountainIndex + 1;
     });
     
     if (start < rowCells.length) {
-      segments.push(rowCells.slice(start));
+      segments.push({
+        cells: rowCells.slice(start),
+        startIndex: start
+      });
     }
     
     console.log(`  Row ${row} segments:`, segments);
     
     segments.forEach((segment, segIndex) => {
-      const segmentScores = calculateSegmentScore(segment, board, row, 'row', colorToPlayerId);
+      const segmentScores = calculateSegmentScore(segment.cells, board, row, 'row', colorToPlayerId, segment.startIndex);
       console.log(`  Row ${row} segment ${segIndex} scores:`, segmentScores);
       Object.entries(segmentScores).forEach(([playerId, score]) => {
         scores[playerId] = (scores[playerId] || 0) + score;
@@ -251,24 +257,30 @@ const calculateColumnScore = (board: (Castle | Tile | null)[][], col: number, co
     return segmentScores;
   } else {
     // Score segments separated by mountains
-    const segments: (Castle | Tile | null)[][] = [];
+    const segments: { cells: (Castle | Tile | null)[], startIndex: number }[] = [];
     let start = 0;
     
     mountainIndices.forEach(mountainIndex => {
       if (start < mountainIndex) {
-        segments.push(colCells.slice(start, mountainIndex));
+        segments.push({
+          cells: colCells.slice(start, mountainIndex),
+          startIndex: start
+        });
       }
       start = mountainIndex + 1;
     });
     
     if (start < colCells.length) {
-      segments.push(colCells.slice(start));
+      segments.push({
+        cells: colCells.slice(start),
+        startIndex: start
+      });
     }
     
     console.log(`  Column ${col} segments:`, segments);
     
     segments.forEach((segment, segIndex) => {
-      const segmentScores = calculateSegmentScore(segment, board, col, 'column', colorToPlayerId);
+      const segmentScores = calculateSegmentScore(segment.cells, board, col, 'column', colorToPlayerId, segment.startIndex);
       console.log(`  Column ${col} segment ${segIndex} scores:`, segmentScores);
       Object.entries(segmentScores).forEach(([playerId, score]) => {
         scores[playerId] = (scores[playerId] || 0) + score;
@@ -284,7 +296,8 @@ const calculateSegmentScore = (
   board: (Castle | Tile | null)[][], 
   lineIndex: number, 
   lineType: 'row' | 'column',
-  colorToPlayerId: { [color: string]: string }
+  colorToPlayerId: { [color: string]: string },
+  segmentStartIndex: number = 0
 ): { [playerId: string]: number } => {
   const scores: { [playerId: string]: number } = {};
   
@@ -332,9 +345,9 @@ const calculateSegmentScore = (
       let effectiveRank = castle.rank;
       
       // Check for wizard bonus (orthogonally adjacent)
-      const actualIndex = lineType === 'row' ? segmentIndex : lineIndex;
-      const row = lineType === 'row' ? lineIndex : segmentIndex;
-      const col = lineType === 'row' ? segmentIndex : lineIndex;
+      const actualIndex = segmentStartIndex + segmentIndex;
+      const row = lineType === 'row' ? lineIndex : actualIndex;
+      const col = lineType === 'row' ? actualIndex : lineIndex;
       
       if (isAdjacentToWizard(board, row, col)) {
         effectiveRank += 1;
