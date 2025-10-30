@@ -227,12 +227,24 @@ export const useGamePlay = (
       return;
     }
 
+    if (!isValidPosition(row, col, gameState.board)) {
+      toast.error('Invalid position');
+      return;
+    }
+
     console.log('=== PLACING STARTING TILE ===');
     console.log('Starting tile:', currentPlayer.startingTile);
     console.log('Position:', { row, col });
+    console.log('Current player:', currentPlayer.name);
 
-    await placeTile(currentPlayer.startingTile, row, col);
+    // Create the updated tile with position
+    const updatedTile = { ...currentPlayer.startingTile, position: { row, col } };
     
+    // Update the board
+    const newBoard = gameState.board.map(r => [...r]);
+    newBoard[row][col] = updatedTile;
+
+    // Remove starting tile from player and advance turn
     const updatedPlayers = gameState.players.map(player => {
       if (player.id === currentPlayer.id) {
         return { ...player, startingTile: undefined };
@@ -240,9 +252,26 @@ export const useGamePlay = (
       return player;
     });
 
-    const newGameState = { ...gameState, players: updatedPlayers };
+    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+
+    // Create complete new game state in one operation
+    const newGameState = {
+      ...gameState,
+      board: newBoard,
+      players: updatedPlayers,
+      currentPlayerIndex: nextPlayerIndex
+    };
+
+    console.log('=== NEW GAME STATE AFTER STARTING TILE PLACEMENT ===');
+    console.log('Next player index:', nextPlayerIndex);
+    console.log('Next player:', gameState.players[nextPlayerIndex].name);
+    console.log('Starting tile removed from player:', !newGameState.players.find(p => p.id === currentPlayer.id)?.startingTile);
+    console.log('Tile placed on board:', newGameState.board[row][col]);
+
     await saveGameState(newGameState);
-  }, [gameState, playerId, placeTile, saveGameState]);
+    setHasSelectedStartingTile(false);
+    toast.success('Starting tile placed!');
+  }, [gameState, playerId, saveGameState]);
 
   const handleCellClick = useCallback((row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) return;
