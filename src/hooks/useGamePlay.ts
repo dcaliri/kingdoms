@@ -16,6 +16,35 @@ export const useGamePlay = (
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateRef = useRef<number>(Date.now());
 
+  // Define saveGameState first to avoid circular dependency
+  const saveGameState = useCallback(async (newGameState: GameState) => {
+    if (!roomId) {
+      console.error('No room ID for saving game state');
+      return;
+    }
+    
+    try {
+      console.log('=== SAVING GAME STATE ===');
+      console.log('Room ID:', roomId);
+      console.log('Player ID:', playerId);
+      console.log('New game state:', newGameState);
+      console.log('Current player index:', newGameState.currentPlayerIndex);
+      console.log('Current player:', newGameState.players[newGameState.currentPlayerIndex]?.name);
+      
+      // Update local state immediately for responsive UI
+      setGameState(newGameState);
+      lastUpdateRef.current = Date.now();
+      
+      // Then save to database
+      await updateGameState(roomId, newGameState);
+      console.log('=== GAME STATE SAVED SUCCESSFULLY ===');
+    } catch (error) {
+      console.error('=== FAILED TO SAVE GAME STATE ===');
+      console.error('Error:', error);
+      toast.error('Failed to sync game state');
+    }
+  }, [roomId, setGameState, playerId]);
+
   // Clear selections when it's not your turn
   useEffect(() => {
     if (gameState) {
@@ -193,34 +222,6 @@ export const useGamePlay = (
       }
     };
   }, [roomId, gameState, playerId, setGameState]);
-
-  const saveGameState = useCallback(async (newGameState: GameState) => {
-    if (!roomId) {
-      console.error('No room ID for saving game state');
-      return;
-    }
-    
-    try {
-      console.log('=== SAVING GAME STATE ===');
-      console.log('Room ID:', roomId);
-      console.log('Player ID:', playerId);
-      console.log('New game state:', newGameState);
-      console.log('Current player index:', newGameState.currentPlayerIndex);
-      console.log('Current player:', newGameState.players[newGameState.currentPlayerIndex]?.name);
-      
-      // Update local state immediately for responsive UI
-      setGameState(newGameState);
-      lastUpdateRef.current = Date.now();
-      
-      // Then save to database
-      await updateGameState(roomId, newGameState);
-      console.log('=== GAME STATE SAVED SUCCESSFULLY ===');
-    } catch (error) {
-      console.error('=== FAILED TO SAVE GAME STATE ===');
-      console.error('Error:', error);
-      toast.error('Failed to sync game state');
-    }
-  }, [roomId, setGameState, playerId]);
 
   const placeCastle = useCallback(async (castle: Castle, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
