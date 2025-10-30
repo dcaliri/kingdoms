@@ -5,7 +5,7 @@ import { Separator } from '@/components/ui/separator';
 import { GameState, Player, Tile } from '@/types/game';
 import { canPlayerAct } from '@/utils/gameLogic';
 import TilePreview from './TilePreview';
-import { LogOut, Square } from 'lucide-react';
+import { LogOut, Square, AlertCircle } from 'lucide-react';
 
 interface GameActionsProps {
   gameState: GameState;
@@ -39,6 +39,9 @@ const GameActions: React.FC<GameActionsProps> = ({
   const ownPlayer = gameState.players.find(p => p.id === playerId);
   const isHost = ownPlayer && gameState.players[0]?.id === ownPlayer.id; // First player is considered host
 
+  // Determine if tile drawing should be disabled
+  const canDrawTile = hasTilesInSupply && hasEmptySpaces && !selectedTile && isMyTurn;
+
   return (
     <Card>
       <CardHeader>
@@ -52,7 +55,7 @@ const GameActions: React.FC<GameActionsProps> = ({
         {/* Game Actions */}
         <Button
           onClick={onDrawTile}
-          disabled={!hasTilesInSupply || !hasEmptySpaces || selectedTile || !isMyTurn}
+          disabled={!canDrawTile}
           className="w-full"
           variant="outline"
         >
@@ -62,25 +65,40 @@ const GameActions: React.FC<GameActionsProps> = ({
           </span>
         </Button>
 
-        {/* Show drawn tile preview */}
+        {/* Show restriction message if tile already drawn */}
         {selectedTile && (
           <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-            <div className="text-sm font-semibold mb-2 text-blue-800">
-              Drawn Tile - Click an empty space to place it:
+            <div className="flex items-center gap-2 text-blue-800 text-sm font-semibold mb-2">
+              <AlertCircle className="h-4 w-4" />
+              Tile must be placed first
+            </div>
+            <div className="text-sm text-blue-700 mb-2">
+              You drew a tile and must place it before taking other actions:
             </div>
             <div className="flex justify-center">
               <TilePreview tile={selectedTile} />
             </div>
+            <div className="text-xs text-blue-600 mt-2 text-center">
+              Click an empty space on the board to place it
+            </div>
           </div>
         )}
 
-        <div className="text-xs text-gray-500 space-y-1">
-          <div>• Select a castle from your panel, then click an empty board space</div>
-          <div>• Click "Draw & Place Tile" to randomly draw a tile, then place it</div>
-          <div>• Select your starting tile from your panel, then place it</div>
-        </div>
+        {/* Show current selection status */}
+        {!selectedTile && (
+          <div className="text-xs text-gray-500 space-y-1">
+            <div>• Select a castle from your panel, then click an empty board space</div>
+            <div>• Click "Draw & Place Tile" to randomly draw a tile, then place it</div>
+            <div>• Select your starting tile from your panel, then place it</div>
+            {selectedCastle && (
+              <div className="text-green-600 font-semibold">
+                ✓ Castle selected - click again to deselect, or click board to place
+              </div>
+            )}
+          </div>
+        )}
 
-        {!canAct && isMyTurn && (
+        {!canAct && isMyTurn && !selectedTile && (
           <Button
             onClick={onPass}
             className="w-full"
@@ -91,9 +109,9 @@ const GameActions: React.FC<GameActionsProps> = ({
         )}
 
         <div className="text-xs text-gray-500 mt-4">
-          {selectedCastle && "Castle selected - click an empty space to place it"}
+          {selectedCastle && !selectedTile && "Castle selected - click an empty space to place it"}
           {selectedTile && "Tile ready - click an empty space to place it"}
-          {hasSelectedStartingTile && "Starting tile selected - click an empty space to place it"}
+          {hasSelectedStartingTile && !selectedTile && "Starting tile selected - click an empty space to place it"}
         </div>
 
         <Separator className="my-4" />

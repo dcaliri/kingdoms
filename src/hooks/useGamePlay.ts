@@ -501,12 +501,22 @@ export const useGamePlay = (
       return;
     }
 
+    // If a tile is already drawn, prevent drawing another
+    if (selectedTile) {
+      toast.error('You must place the drawn tile first');
+      return;
+    }
+
     console.log('=== DRAWING TILE ===');
     console.log('Current player:', currentPlayer.name);
     console.log('Tiles remaining:', gameState.tileSupply.length);
 
     const drawnTile = gameState.tileSupply[0];
     setSelectedTile(drawnTile);
+    
+    // Clear other selections when drawing a tile
+    setSelectedCastle(undefined);
+    setHasSelectedStartingTile(false);
     
     const newGameState = {
       ...gameState,
@@ -519,7 +529,7 @@ export const useGamePlay = (
 
     await saveGameState(newGameState);
     toast.success(`Drew ${drawnTile.name} - click an empty space to place it`);
-  }, [gameState, playerId, saveGameState]);
+  }, [gameState, playerId, saveGameState, selectedTile]);
 
   const placeTile = useCallback(async (tile: Tile, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
@@ -648,11 +658,17 @@ export const useGamePlay = (
       return;
     }
 
+    // If a tile is already drawn, prevent selecting starting tile
+    if (selectedTile) {
+      toast.error('You must place the drawn tile first');
+      return;
+    }
+
     setHasSelectedStartingTile(true);
     setSelectedCastle(undefined);
     setSelectedTile(undefined);
     toast.success('Starting tile selected - click an empty space to place it');
-  }, [gameState, playerId]);
+  }, [gameState, playerId, selectedTile]);
 
   const passTurn = useCallback(async () => {
     if (!gameState) return;
@@ -780,6 +796,39 @@ export const useGamePlay = (
     toast.success(`Game ended! ${winner.name} wins with ${winner.gold} gold!`);
   }, [gameState, playerId, saveGameState]);
 
+  // Enhanced castle selection with undo functionality
+  const handleCastleSelect = useCallback((castle: Castle) => {
+    if (!gameState) return;
+    
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (currentPlayer.id !== playerId) {
+      toast.error('Not your turn');
+      return;
+    }
+
+    // If a tile is already drawn, prevent castle selection
+    if (selectedTile) {
+      toast.error('You must place the drawn tile first');
+      return;
+    }
+
+    // If clicking the same castle, deselect it (undo selection)
+    if (selectedCastle && selectedCastle.id === castle.id) {
+      console.log('=== DESELECTING CASTLE ===');
+      console.log('Castle deselected:', castle);
+      setSelectedCastle(undefined);
+      toast.info('Castle selection cancelled');
+      return;
+    }
+
+    // Select the new castle
+    console.log('=== SELECTING CASTLE ===');
+    console.log('Castle selected:', castle);
+    setSelectedCastle(castle);
+    setHasSelectedStartingTile(false);
+    toast.success(`Castle rank ${castle.rank} selected - click an empty space to place it`);
+  }, [gameState, playerId, selectedCastle, selectedTile]);
+
   return {
     selectedCastle,
     selectedTile,
@@ -787,7 +836,7 @@ export const useGamePlay = (
     showEpochScores,
     epochScores,
     completedEpoch,
-    setSelectedCastle,
+    setSelectedCastle: handleCastleSelect, // Use the enhanced version
     drawAndPlaceTile,
     handleCellClick,
     selectStartingTile,

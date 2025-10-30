@@ -403,6 +403,7 @@ const Index = () => {
                 onStartingTileSelect={selectStartingTile}
                 selectedCastle={selectedCastle}
                 hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
+                selectedTile={selectedTile} // Pass selectedTile to disable interactions
               />
             ))}
           </div>

@@ -14,6 +14,7 @@ interface PlayerPanelProps {
   onStartingTileSelect: () => void;
   selectedCastle?: Castle;
   hasSelectedStartingTile: boolean;
+  selectedTile?: any; // Add selectedTile prop to disable interactions
 }
 
 const PlayerPanel: React.FC<PlayerPanelProps> = ({
@@ -23,7 +24,8 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
   onCastleSelect,
   onStartingTileSelect,
   selectedCastle,
-  hasSelectedStartingTile
+  hasSelectedStartingTile,
+  selectedTile
 }) => {
   const availableCastles = player.castles.filter(castle => !castle.position);
   const placedCastles = player.castles.filter(castle => castle.position);
@@ -31,10 +33,15 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
   // Sort available castles by rank in ascending order (1, 2, 3, 4)
   const sortedAvailableCastles = [...availableCastles].sort((a, b) => a.rank - b.rank);
 
+  // Determine if interactions should be disabled
+  const isDisabledDueToTile = !!selectedTile;
+  const canInteract = isCurrentPlayer && isOwnPlayer && !isDisabledDueToTile;
+
   return (
     <Card className={cn(
       "transition-all",
-      isCurrentPlayer && "ring-2 ring-blue-500 bg-blue-50"
+      isCurrentPlayer && "ring-2 ring-blue-500 bg-blue-50",
+      isDisabledDueToTile && isOwnPlayer && "opacity-60"
     )}>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between text-sm">
@@ -58,7 +65,12 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
       <CardContent className="space-y-3 pt-0">
         {/* Available Castles */}
         <div>
-          <h4 className="text-xs font-semibold mb-2">Castles ({sortedAvailableCastles.length})</h4>
+          <h4 className="text-xs font-semibold mb-2">
+            Castles ({sortedAvailableCastles.length})
+            {isDisabledDueToTile && isOwnPlayer && (
+              <span className="text-red-500 ml-2">(Place tile first)</span>
+            )}
+          </h4>
           <div className="flex flex-wrap gap-2">
             {sortedAvailableCastles.map(castle => (
               <Button
@@ -66,8 +78,19 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
                 variant={selectedCastle?.id === castle.id ? "default" : "outline"}
                 size="sm"
                 onClick={() => onCastleSelect(castle)}
-                disabled={!isCurrentPlayer || !isOwnPlayer}
-                className="h-12 w-12 p-1"
+                disabled={!canInteract}
+                className={cn(
+                  "h-12 w-12 p-1 transition-all",
+                  selectedCastle?.id === castle.id && "ring-2 ring-blue-400 bg-blue-600",
+                  isDisabledDueToTile && "cursor-not-allowed opacity-50"
+                )}
+                title={
+                  isDisabledDueToTile 
+                    ? "Place the drawn tile first" 
+                    : selectedCastle?.id === castle.id 
+                      ? "Click again to deselect" 
+                      : `Select rank ${castle.rank} castle`
+                }
               >
                 <CastleIcon 
                   rank={castle.rank} 
@@ -85,7 +108,12 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
         {/* Starting Tile - Only show for own player */}
         {isOwnPlayer && (
           <div>
-            <h4 className="text-xs font-semibold mb-1">Starting Tile</h4>
+            <h4 className="text-xs font-semibold mb-1">
+              Starting Tile
+              {isDisabledDueToTile && (
+                <span className="text-red-500 ml-2">(Place tile first)</span>
+              )}
+            </h4>
             {player.startingTile ? (
               <div className="flex items-center gap-2">
                 <div className="w-12 h-12">
@@ -95,8 +123,13 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
                   variant={hasSelectedStartingTile ? "default" : "outline"}
                   size="sm"
                   onClick={onStartingTileSelect}
-                  disabled={!isCurrentPlayer}
-                  className="text-xs h-6"
+                  disabled={!canInteract}
+                  className={cn(
+                    "text-xs h-6 transition-all",
+                    hasSelectedStartingTile && "ring-2 ring-blue-400",
+                    isDisabledDueToTile && "cursor-not-allowed opacity-50"
+                  )}
+                  title={isDisabledDueToTile ? "Place the drawn tile first" : "Select starting tile"}
                 >
                   Place
                 </Button>
@@ -111,6 +144,32 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
         <div className="text-xs text-gray-600">
           Placed: {placedCastles.length} castles
         </div>
+
+        {/* Selection Status */}
+        {isOwnPlayer && isCurrentPlayer && (
+          <div className="text-xs">
+            {selectedTile && (
+              <div className="text-blue-600 font-semibold">
+                📋 Tile drawn - place it on the board
+              </div>
+            )}
+            {selectedCastle && !selectedTile && (
+              <div className="text-green-600 font-semibold">
+                🏰 Castle selected - click board to place
+              </div>
+            )}
+            {hasSelectedStartingTile && !selectedTile && (
+              <div className="text-purple-600 font-semibold">
+                🎯 Starting tile ready - click board to place
+              </div>
+            )}
+            {!selectedCastle && !selectedTile && !hasSelectedStartingTile && (
+              <div className="text-gray-500">
+                Choose an action for your turn
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
