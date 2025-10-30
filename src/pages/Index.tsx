@@ -391,9 +391,9 @@ const Index = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-12 gap-3 h-[calc(100vh-200px)]">
-          {/* Left Column - Players and Game Log */}
-          <div className="col-span-2 space-y-3 overflow-y-auto">
+        <div className="grid grid-cols-12 gap-2 h-[calc(100vh-200px)]">
+          {/* Left Column - Players and Game Log (Wider) */}
+          <div className="col-span-3 space-y-3 overflow-y-auto">
             {/* Players */}
             <div className="space-y-2">
               {gameState.players.map(player => (
@@ -415,9 +415,9 @@ const Index = () => {
             <GameLog gameState={gameState} />
           </div>
 
-          {/* Center Column - Game Board */}
-          <div className="col-span-8 flex items-center justify-center">
-            <div className="w-full max-w-4xl">
+          {/* Center Column - Game Board (Slightly smaller) */}
+          <div className="col-span-6 flex items-center justify-center">
+            <div className="w-full max-w-3xl">
               <GameBoard
                 gameState={gameState}
                 onCellClick={handleCellClick}
@@ -427,8 +427,8 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Right Column - Actions and Scores */}
-          <div className="col-span-2 space-y-3 overflow-y-auto">
+          {/* Right Column - Actions and Scores (Wider) */}
+          <div className="col-span-3 space-y-3 overflow-y-auto">
             <GameActions
               gameState={gameState}
               currentPlayer={currentPlayer}
