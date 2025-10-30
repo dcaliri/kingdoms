@@ -391,26 +391,27 @@ const Index = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-6 gap-3">
-          {/* Left Column - Players */}
-          <div className="lg:col-span-1 space-y-2">
-            {gameState.players.map(player => (
-              <PlayerPanel
-                key={player.id}
-                player={player}
-                isCurrentPlayer={player.id === currentPlayer.id}
-                isOwnPlayer={player.id === playerId}
-                onCastleSelect={setSelectedCastle}
-                onStartingTileSelect={selectStartingTile}
-                selectedCastle={selectedCastle}
-                hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
-                selectedTile={selectedTile} // Pass selectedTile to disable interactions
-              />
-            ))}
-          </div>
-
-          {/* Game Log Column */}
-          <div className="lg:col-span-1">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+          {/* Left Column - Players and Game Log */}
+          <div className="lg:col-span-1 space-y-3">
+            {/* Players */}
+            <div className="space-y-2">
+              {gameState.players.map(player => (
+                <PlayerPanel
+                  key={player.id}
+                  player={player}
+                  isCurrentPlayer={player.id === currentPlayer.id}
+                  isOwnPlayer={player.id === playerId}
+                  onCastleSelect={setSelectedCastle}
+                  onStartingTileSelect={selectStartingTile}
+                  selectedCastle={selectedCastle}
+                  hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
+                  selectedTile={selectedTile} // Pass selectedTile to disable interactions
+                />
+              ))}
+            </div>
+            
+            {/* Game Log below players */}
             <GameLog gameState={gameState} />
           </div>
 
