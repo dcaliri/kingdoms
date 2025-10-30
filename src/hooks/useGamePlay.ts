@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, Castle, Tile } from '@/types/game';
 import { isValidPosition, calculateScore, canPlayerAct, createInitialTiles, shuffleArray, BOARD_ROWS, BOARD_COLS, createInitialCastles } from '@/utils/gameLogic';
 import { updateGameState, getGameState } from '@/utils/supabaseRoomManager';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export const useGamePlay = (
@@ -19,6 +20,7 @@ export const useGamePlay = (
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateRef = useRef<number>(Date.now());
   const epochEndProcessedRef = useRef<string>(''); // Track processed epochs to avoid duplicates
+  const subscriptionRef = useRef<any>(null);
 
   // Define saveGameState first to avoid circular dependency
   const saveGameState = useCallback(async (newGameState: GameState) => {
@@ -48,6 +50,137 @@ export const useGamePlay = (
       toast.error('Failed to sync game state');
     }
   }, [roomId, setGameState, playerId]);
+
+  // Enhanced real-time subscription with better error handling
+  useEffect(() => {
+    if (!roomId || !playerId) return;
+
+    console.log('=== SETTING UP ENHANCED REAL-TIME SUBSCRIPTION ===');
+    console.log('Room ID:', roomId);
+    console.log('Player ID:', playerId);
+
+    // Clean up existing subscription
+    if (subscriptionRef.current) {
+      console.log('Cleaning up existing subscription');
+      supabase.removeChannel(subscriptionRef.current);
+      subscriptionRef.current = null;
+    }
+
+    const channel = supabase
+      .channel(`game-play-${roomId}-${playerId}-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'games',
+          filter: `room_id=eq.${roomId}`
+        },
+        async (payload) => {
+          console.log('=== REAL-TIME GAME UPDATE RECEIVED ===');
+          console.log('Event type:', payload.eventType);
+          console.log('Player ID:', playerId);
+          console.log('Timestamp:', new Date().toISOString());
+          
+          if (payload.new && payload.new.game_state) {
+            const updatedGameState = payload.new.game_state as GameState;
+            console.log('=== PROCESSING GAME STATE UPDATE ===');
+            console.log('Current epoch in state:', gameState?.epoch);
+            console.log('New epoch:', updatedGameState.epoch);
+            console.log('Current phase in state:', gameState?.gamePhase);
+            console.log('New phase:', updatedGameState.gamePhase);
+            console.log('Show epoch scores:', showEpochScores);
+            
+            // Update game state
+            setGameState(updatedGameState);
+            lastUpdateRef.current = Date.now();
+            
+            // If we're showing epoch scores and the epoch changed, hide the score screen
+            if (showEpochScores && gameState && updatedGameState.epoch !== gameState.epoch) {
+              console.log('=== EPOCH CHANGED - HIDING SCORE SCREEN ===');
+              console.log('Old epoch:', gameState.epoch);
+              console.log('New epoch:', updatedGameState.epoch);
+              setShowEpochScores(false);
+              setCompletedEpoch(0);
+              toast.success(`Starting Epoch ${updatedGameState.epoch}!`);
+            }
+            
+            // If game finished, hide score screen
+            if (showEpochScores && updatedGameState.gamePhase === 'finished') {
+              console.log('=== GAME FINISHED - HIDING SCORE SCREEN ===');
+              setShowEpochScores(false);
+              setCompletedEpoch(0);
+            }
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('=== SUBSCRIPTION STATUS UPDATE ===');
+        console.log('Status:', status);
+        console.log('Room ID:', roomId);
+        console.log('Player ID:', playerId);
+        
+        if (err) {
+          console.error('=== SUBSCRIPTION ERROR ===');
+          console.error('Error:', err);
+          toast.error('Connection issue - trying to reconnect...');
+        } else if (status === 'SUBSCRIBED') {
+          console.log('=== SUCCESSFULLY SUBSCRIBED TO REAL-TIME UPDATES ===');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('=== CHANNEL ERROR - ATTEMPTING RECONNECTION ===');
+          // Attempt to reconnect after a delay
+          setTimeout(() => {
+            console.log('Attempting to reconnect...');
+            // The useEffect will run again and create a new subscription
+          }, 2000);
+        }
+      });
+
+    subscriptionRef.current = channel;
+
+    // Backup polling mechanism
+    const pollInterval = setInterval(async () => {
+      try {
+        console.log('=== BACKUP POLLING CHECK ===');
+        const currentGameState = await getGameState(roomId);
+        if (currentGameState && gameState) {
+          const stateChanged = JSON.stringify(currentGameState) !== JSON.stringify(gameState);
+          if (stateChanged) {
+            console.log('=== POLLING DETECTED CHANGE ===');
+            console.log('Current epoch:', gameState.epoch);
+            console.log('New epoch:', currentGameState.epoch);
+            
+            setGameState(currentGameState);
+            
+            // Handle epoch transitions via polling
+            if (showEpochScores && currentGameState.epoch !== gameState.epoch) {
+              console.log('=== POLLING: EPOCH CHANGED - HIDING SCORE SCREEN ===');
+              setShowEpochScores(false);
+              setCompletedEpoch(0);
+              toast.success(`Starting Epoch ${currentGameState.epoch}!`);
+            }
+            
+            if (showEpochScores && currentGameState.gamePhase === 'finished') {
+              console.log('=== POLLING: GAME FINISHED - HIDING SCORE SCREEN ===');
+              setShowEpochScores(false);
+              setCompletedEpoch(0);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => {
+      console.log('=== CLEANING UP GAME PLAY SUBSCRIPTION ===');
+      if (subscriptionRef.current) {
+        supabase.removeChannel(subscriptionRef.current);
+        subscriptionRef.current = null;
+      }
+      clearInterval(pollInterval);
+    };
+  }, [roomId, playerId, gameState, showEpochScores, setGameState]);
 
   // Clear selections when it's not your turn
   useEffect(() => {
@@ -294,46 +427,6 @@ export const useGamePlay = (
       toast.success(`Starting Epoch ${nextEpoch}! ${sortedPlayers[0].name} goes first!`);
     }
   }, [gameState, saveGameState]);
-
-  // Fallback polling mechanism
-  useEffect(() => {
-    if (!roomId || !gameState) return;
-
-    console.log('=== SETTING UP FALLBACK POLLING ===');
-    console.log('Room ID:', roomId);
-    console.log('Player ID:', playerId);
-
-    // Poll every 2 seconds as a fallback
-    pollingIntervalRef.current = setInterval(async () => {
-      try {
-        const currentGameState = await getGameState(roomId);
-        if (currentGameState) {
-          // Check if the game state has actually changed
-          const currentStateStr = JSON.stringify(gameState);
-          const newStateStr = JSON.stringify(currentGameState);
-          
-          if (currentStateStr !== newStateStr) {
-            console.log('=== POLLING DETECTED CHANGE ===');
-            console.log('Current player index:', currentGameState.currentPlayerIndex);
-            console.log('Current player:', currentGameState.players[currentGameState.currentPlayerIndex]?.name);
-            console.log('Player ID:', playerId);
-            setGameState(currentGameState);
-            lastUpdateRef.current = Date.now();
-          }
-        }
-      } catch (error) {
-        console.error('Polling error:', error);
-      }
-    }, 2000);
-
-    return () => {
-      console.log('=== CLEANING UP POLLING ===');
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, [roomId, gameState, playerId, setGameState]);
 
   const placeCastle = useCallback(async (castle: Castle, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {

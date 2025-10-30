@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GameState } from '@/types/game';
-import { Trophy, Crown, Medal, Award } from 'lucide-react';
+import { Trophy, Crown, Medal, Award, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { getGameState } from '@/utils/supabaseRoomManager';
+import { toast } from 'sonner';
 
 interface EpochScoreScreenProps {
   gameState: GameState;
@@ -25,6 +27,49 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
   isHost,
   roomId
 }) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState<string>('');
+
+  // Manual refresh function
+  const handleManualRefresh = async () => {
+    if (!roomId) return;
+    
+    setIsRefreshing(true);
+    try {
+      console.log('=== MANUAL REFRESH TRIGGERED ===');
+      console.log('Room ID:', roomId);
+      console.log('Current epoch on screen:', epochNumber);
+      
+      const currentGameState = await getGameState(roomId);
+      if (currentGameState) {
+        console.log('=== MANUAL REFRESH: GAME STATE RETRIEVED ===');
+        console.log('Current epoch in DB:', currentGameState.epoch);
+        console.log('Current phase in DB:', currentGameState.gamePhase);
+        
+        // If epoch changed or game finished, update parent
+        if (currentGameState.epoch !== epochNumber || currentGameState.gamePhase === 'finished') {
+          console.log('=== MANUAL REFRESH: EPOCH CHANGED - UPDATING PARENT ===');
+          onGameStateUpdate(currentGameState);
+          toast.success('Game state refreshed!');
+        } else {
+          console.log('=== MANUAL REFRESH: NO CHANGES DETECTED ===');
+          toast.info('No updates available');
+        }
+        
+        setLastUpdateTime(new Date().toLocaleTimeString());
+      } else {
+        console.error('=== MANUAL REFRESH: NO GAME STATE FOUND ===');
+        toast.error('Could not retrieve game state');
+      }
+    } catch (error) {
+      console.error('=== MANUAL REFRESH ERROR ===');
+      console.error('Error:', error);
+      toast.error('Failed to refresh game state');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   // Set up real-time subscription to listen for game state changes
   useEffect(() => {
     if (!roomId) return;
@@ -35,7 +80,7 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
     console.log('Current Epoch:', epochNumber);
 
     const channel = supabase
-      .channel(`epoch-score-${roomId}`)
+      .channel(`epoch-score-${roomId}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -48,6 +93,7 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
           console.log('=== EPOCH SCORE SCREEN: REAL-TIME UPDATE ===');
           console.log('Event type:', payload.eventType);
           console.log('Is Host:', isHost);
+          console.log('Timestamp:', new Date().toISOString());
           
           if (payload.new && payload.new.game_state) {
             const updatedGameState = payload.new.game_state as GameState;
@@ -55,6 +101,8 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
             console.log('New epoch:', updatedGameState.epoch);
             console.log('New phase:', updatedGameState.gamePhase);
             console.log('Current epoch on screen:', epochNumber);
+            
+            setLastUpdateTime(new Date().toLocaleTimeString());
             
             // If the game state has changed (new epoch or finished), update the parent
             if (updatedGameState.epoch !== epochNumber || updatedGameState.gamePhase === 'finished') {
@@ -68,10 +116,14 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
       .subscribe((status, err) => {
         console.log('=== EPOCH SCORE SCREEN SUBSCRIPTION STATUS ===');
         console.log('Status:', status);
+        console.log('Timestamp:', new Date().toISOString());
         if (err) {
           console.error('Subscription error:', err);
         }
       });
+
+    // Set initial update time
+    setLastUpdateTime(new Date().toLocaleTimeString());
 
     return () => {
       console.log('=== CLEANING UP EPOCH SCORE SCREEN SUBSCRIPTION ===');
@@ -377,6 +429,23 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
             <Trophy className="h-8 w-8" />
           </CardTitle>
           <p className="text-yellow-100 text-lg">Points earned this epoch</p>
+          
+          {/* Connection Status and Manual Refresh */}
+          <div className="flex items-center justify-center gap-4 mt-2 text-sm">
+            <span className="text-yellow-100">
+              Last update: {lastUpdateTime || 'Connecting...'}
+            </span>
+            <Button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              variant="outline"
+              size="sm"
+              className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </div>
         </CardHeader>
         
         <CardContent className="p-6">
@@ -513,6 +582,9 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
                 <div className="text-gray-600 mb-2">Waiting for host to continue...</div>
                 <div className="animate-pulse text-blue-600 font-semibold">
                   Host will start the next epoch
+                </div>
+                <div className="text-xs text-gray-500 mt-2">
+                  If you're stuck here, try the refresh button above
                 </div>
               </div>
             )}
