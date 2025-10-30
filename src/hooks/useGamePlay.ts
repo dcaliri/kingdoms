@@ -36,6 +36,7 @@ export const useGamePlay = (
       console.log('New game state:', newGameState);
       console.log('Current player index:', newGameState.currentPlayerIndex);
       console.log('Current player:', newGameState.players[newGameState.currentPlayerIndex]?.name);
+      console.log('Game phase:', newGameState.gamePhase);
       
       // Update local state immediately for responsive UI
       setGameState(newGameState);
@@ -149,6 +150,8 @@ export const useGamePlay = (
             console.log('=== POLLING DETECTED CHANGE ===');
             console.log('Current epoch:', gameState.epoch);
             console.log('New epoch:', currentGameState.epoch);
+            console.log('Current phase:', gameState.gamePhase);
+            console.log('New phase:', currentGameState.gamePhase);
             
             setGameState(currentGameState);
             
@@ -208,12 +211,14 @@ export const useGamePlay = (
     console.log('Stored scores:', storedScores);
     console.log('Currently showing scores:', showEpochScores);
     console.log('Completed epoch:', completedEpoch);
+    console.log('Game phase:', gameState.gamePhase);
 
     // Show score screen if:
     // 1. We have stored scores for current epoch
     // 2. We're not already showing the score screen
     // 3. The completed epoch doesn't match current epoch (new scores available)
-    if (storedScores && !showEpochScores && completedEpoch !== gameState.epoch) {
+    // 4. Game is not finished (finished state should show final results, not epoch scores)
+    if (storedScores && !showEpochScores && completedEpoch !== gameState.epoch && gameState.gamePhase !== 'finished') {
       console.log('=== SHOWING EPOCH SCORES FOR ALL PLAYERS ===');
       console.log('Epoch scores to show:', storedScores);
       
@@ -334,6 +339,8 @@ export const useGamePlay = (
     if (!gameState) return;
 
     console.log('=== CONTINUING TO NEXT EPOCH ===');
+    console.log('Current epoch:', gameState.epoch);
+    console.log('Game phase:', gameState.gamePhase);
     
     if (gameState.epoch === 3) {
       // Game is finished
@@ -350,6 +357,9 @@ export const useGamePlay = (
         gamePhase: 'finished' as const,
         winner
       };
+
+      console.log('=== SAVING FINAL GAME STATE ===');
+      console.log('Final game state:', finalGameState);
 
       await saveGameState(finalGameState);
       setShowEpochScores(false);
@@ -762,6 +772,9 @@ export const useGamePlay = (
       gamePhase: 'finished' as const,
       winner
     };
+
+    console.log('=== SAVING FINAL GAME STATE (END GAME) ===');
+    console.log('Final game state:', finalGameState);
 
     await saveGameState(finalGameState);
     toast.success(`Game ended! ${winner.name} wins with ${winner.gold} gold!`);

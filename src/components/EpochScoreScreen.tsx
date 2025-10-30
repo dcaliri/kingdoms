@@ -39,6 +39,7 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
       console.log('=== MANUAL REFRESH TRIGGERED ===');
       console.log('Room ID:', roomId);
       console.log('Current epoch on screen:', epochNumber);
+      console.log('Current game phase:', gameState.gamePhase);
       
       const currentGameState = await getGameState(roomId);
       if (currentGameState) {
@@ -46,9 +47,11 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
         console.log('Current epoch in DB:', currentGameState.epoch);
         console.log('Current phase in DB:', currentGameState.gamePhase);
         
-        // If epoch changed or game finished, update parent
-        if (currentGameState.epoch !== epochNumber || currentGameState.gamePhase === 'finished') {
-          console.log('=== MANUAL REFRESH: EPOCH CHANGED - UPDATING PARENT ===');
+        // If epoch changed, game finished, or any significant change, update parent
+        if (currentGameState.epoch !== epochNumber || 
+            currentGameState.gamePhase !== gameState.gamePhase ||
+            currentGameState.gamePhase === 'finished') {
+          console.log('=== MANUAL REFRESH: GAME STATE CHANGED - UPDATING PARENT ===');
           onGameStateUpdate(currentGameState);
           toast.success('Game state refreshed!');
         } else {
@@ -78,6 +81,7 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
     console.log('Room ID:', roomId);
     console.log('Is Host:', isHost);
     console.log('Current Epoch:', epochNumber);
+    console.log('Current Game Phase:', gameState.gamePhase);
 
     const channel = supabase
       .channel(`epoch-score-${roomId}-${Date.now()}`)
@@ -101,12 +105,22 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
             console.log('New epoch:', updatedGameState.epoch);
             console.log('New phase:', updatedGameState.gamePhase);
             console.log('Current epoch on screen:', epochNumber);
+            console.log('Current phase on screen:', gameState.gamePhase);
             
             setLastUpdateTime(new Date().toLocaleTimeString());
             
-            // If the game state has changed (new epoch or finished), update the parent
-            if (updatedGameState.epoch !== epochNumber || updatedGameState.gamePhase === 'finished') {
-              console.log('=== EPOCH CHANGED OR GAME FINISHED - UPDATING PARENT ===');
+            // Update parent if:
+            // 1. Epoch changed (next epoch started)
+            // 2. Game phase changed (especially to 'finished')
+            // 3. Game is finished (regardless of other conditions)
+            if (updatedGameState.epoch !== epochNumber || 
+                updatedGameState.gamePhase !== gameState.gamePhase ||
+                updatedGameState.gamePhase === 'finished') {
+              console.log('=== SIGNIFICANT CHANGE DETECTED - UPDATING PARENT ===');
+              console.log('Reason for update:');
+              console.log('- Epoch changed:', updatedGameState.epoch !== epochNumber);
+              console.log('- Phase changed:', updatedGameState.gamePhase !== gameState.gamePhase);
+              console.log('- Game finished:', updatedGameState.gamePhase === 'finished');
               console.log('Calling onGameStateUpdate with:', updatedGameState);
               onGameStateUpdate(updatedGameState);
             }
@@ -125,11 +139,33 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
     // Set initial update time
     setLastUpdateTime(new Date().toLocaleTimeString());
 
+    // Also set up a backup polling mechanism specifically for this screen
+    const pollInterval = setInterval(async () => {
+      try {
+        console.log('=== EPOCH SCORE SCREEN: BACKUP POLLING ===');
+        const currentGameState = await getGameState(roomId);
+        if (currentGameState) {
+          // Check for any significant changes
+          if (currentGameState.epoch !== epochNumber || 
+              currentGameState.gamePhase !== gameState.gamePhase ||
+              currentGameState.gamePhase === 'finished') {
+            console.log('=== POLLING DETECTED CHANGE - UPDATING PARENT ===');
+            console.log('Current epoch:', epochNumber, '-> New epoch:', currentGameState.epoch);
+            console.log('Current phase:', gameState.gamePhase, '-> New phase:', currentGameState.gamePhase);
+            onGameStateUpdate(currentGameState);
+          }
+        }
+      } catch (error) {
+        console.error('Polling error in EpochScoreScreen:', error);
+      }
+    }, 2000); // Poll every 2 seconds
+
     return () => {
       console.log('=== CLEANING UP EPOCH SCORE SCREEN SUBSCRIPTION ===');
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
-  }, [roomId, epochNumber, isHost, onGameStateUpdate]);
+  }, [roomId, epochNumber, isHost, onGameStateUpdate, gameState.gamePhase]);
 
   // Sort players by epoch score (highest first)
   const sortedPlayers = [...gameState.players].sort((a, b) => 
@@ -581,7 +617,7 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
               <div className="text-center">
                 <div className="text-gray-600 mb-2">Waiting for host to continue...</div>
                 <div className="animate-pulse text-blue-600 font-semibold">
-                  Host will start the next epoch
+                  {epochNumber === 3 ? 'Host will view final results' : 'Host will start the next epoch'}
                 </div>
                 <div className="text-xs text-gray-500 mt-2">
                   If you're stuck here, try the refresh button above
