@@ -354,8 +354,8 @@ const Index = () => {
   const isMyTurn = currentPlayer?.id === playerId;
 
   return (
-    <div className="min-h-screen bg-gray-100 p-2">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-100">
+      <div className="w-full px-2 py-2">
         {/* Header */}
         <div className="text-center mb-3">
           <h1 className="text-2xl font-bold mb-1">Kingdoms</h1>
@@ -391,9 +391,9 @@ const Index = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-12 gap-3 h-[calc(100vh-200px)]">
           {/* Left Column - Players and Game Log */}
-          <div className="lg:col-span-1 space-y-3">
+          <div className="col-span-2 space-y-3 overflow-y-auto">
             {/* Players */}
             <div className="space-y-2">
               {gameState.players.map(player => (
@@ -416,8 +416,8 @@ const Index = () => {
           </div>
 
           {/* Center Column - Game Board */}
-          <div className="lg:col-span-3 flex justify-center">
-            <div className="w-full max-w-2xl">
+          <div className="col-span-8 flex items-center justify-center">
+            <div className="w-full max-w-4xl">
               <GameBoard
                 gameState={gameState}
                 onCellClick={handleCellClick}
@@ -428,7 +428,7 @@ const Index = () => {
           </div>
 
           {/* Right Column - Actions and Scores */}
-          <div className="lg:col-span-1 space-y-3">
+          <div className="col-span-2 space-y-3 overflow-y-auto">
             <GameActions
               gameState={gameState}
               currentPlayer={currentPlayer}

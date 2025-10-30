@@ -26,39 +26,39 @@ const GameBoard: React.FC<GameBoardProps> = ({
       <div
         key={`${row}-${col}`}
         className={cn(
-          "aspect-square border-2 border-gray-300 flex items-center justify-center text-sm font-bold cursor-pointer transition-all hover:shadow-md",
+          "aspect-square border-2 border-gray-300 flex items-center justify-center text-sm font-bold cursor-pointer transition-all hover:shadow-lg",
           isEmpty && "bg-gray-50 hover:bg-gray-100",
           canPlace && "border-blue-400 bg-blue-50 hover:bg-blue-100 ring-2 ring-blue-200",
-          !isEmpty && "bg-white shadow-sm"
+          !isEmpty && "bg-white shadow-md hover:shadow-lg"
         )}
         onClick={() => onCellClick(row, col)}
       >
         {cell && (
-          <div className="w-full h-full flex flex-col items-center justify-center p-2">
+          <div className="w-full h-full flex flex-col items-center justify-center p-3">
             {'rank' in cell ? (
               // Castle - use the new CastleIcon component
               <CastleIcon 
                 rank={cell.rank} 
                 color={cell.color} 
-                size="md"
-                className="drop-shadow-sm"
+                size="lg"
+                className="drop-shadow-md"
               />
             ) : (
               // Tile
               <div className={cn(
-                "w-full h-full flex flex-col items-center justify-center rounded text-center shadow-sm",
-                cell.type === 'resource' && "bg-green-200 text-green-800",
-                cell.type === 'hazard' && "bg-red-200 text-red-800",
-                cell.type === 'mountain' && "bg-gray-400 text-white",
-                cell.type === 'dragon' && "bg-purple-500 text-white",
-                cell.type === 'goldmine' && "bg-yellow-400 text-yellow-900",
-                cell.type === 'wizard' && "bg-indigo-400 text-white"
+                "w-full h-full flex flex-col items-center justify-center rounded-lg text-center shadow-sm border",
+                cell.type === 'resource' && "bg-green-200 text-green-800 border-green-300",
+                cell.type === 'hazard' && "bg-red-200 text-red-800 border-red-300",
+                cell.type === 'mountain' && "bg-gray-400 text-white border-gray-500",
+                cell.type === 'dragon' && "bg-purple-500 text-white border-purple-600",
+                cell.type === 'goldmine' && "bg-yellow-400 text-yellow-900 border-yellow-500",
+                cell.type === 'wizard' && "bg-indigo-400 text-white border-indigo-500"
               )}>
-                <div className="text-xs font-semibold leading-tight mb-1">
+                <div className="text-sm font-semibold leading-tight mb-1">
                   {cell.name}
                 </div>
                 {cell.value !== 0 && (
-                  <div className="text-sm font-bold">
+                  <div className="text-lg font-bold">
                     {cell.value > 0 ? '+' : ''}{cell.value}
                   </div>
                 )}
@@ -71,22 +71,22 @@ const GameBoard: React.FC<GameBoardProps> = ({
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg">
-      <div className="grid grid-cols-6 gap-2 w-full max-w-3xl mx-auto">
+    <div className="bg-white p-8 rounded-xl shadow-xl border-2 border-gray-200">
+      <div className="grid grid-cols-6 gap-3 w-full">
         {Array.from({ length: BOARD_ROWS }, (_, row) =>
           Array.from({ length: BOARD_COLS }, (_, col) => renderCell(row, col))
         )}
       </div>
       
-      <div className="mt-4 text-center">
-        <div className="text-lg text-gray-700 font-semibold">
+      <div className="mt-6 text-center">
+        <div className="text-xl text-gray-700 font-semibold">
           Epoch {gameState.epoch} of 3
         </div>
-        <div className="text-sm text-gray-600 mt-1">
-          Current Player: {gameState.players[gameState.currentPlayerIndex].name}
+        <div className="text-base text-gray-600 mt-2">
+          Current Player: <span className="font-semibold text-blue-600">{gameState.players[gameState.currentPlayerIndex].name}</span>
         </div>
         {(selectedCastle || selectedTile) && (
-          <div className="text-sm text-blue-600 mt-2 font-medium">
+          <div className="text-base text-blue-600 mt-3 font-medium bg-blue-50 p-3 rounded-lg border border-blue-200">
             Click an empty space to place your {selectedCastle ? 'castle' : 'tile'}
           </div>
         )}
