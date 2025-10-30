@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import TilePreview from './TilePreview';
+import CastleIcon from './CastleIcon';
 
 interface PlayerPanelProps {
   player: Player;
@@ -57,8 +58,8 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
       <CardContent className="space-y-3 pt-0">
         {/* Available Castles */}
         <div>
-          <h4 className="text-xs font-semibold mb-1">Castles ({sortedAvailableCastles.length})</h4>
-          <div className="flex flex-wrap gap-1">
+          <h4 className="text-xs font-semibold mb-2">Castles ({sortedAvailableCastles.length})</h4>
+          <div className="flex flex-wrap gap-2">
             {sortedAvailableCastles.map(castle => (
               <Button
                 key={castle.id}
@@ -66,9 +67,13 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
                 size="sm"
                 onClick={() => onCastleSelect(castle)}
                 disabled={!isCurrentPlayer || !isOwnPlayer}
-                className="h-6 w-6 p-0 text-xs"
+                className="h-12 w-12 p-1"
               >
-                {castle.rank}
+                <CastleIcon 
+                  rank={castle.rank} 
+                  color={castle.color} 
+                  size="sm"
+                />
               </Button>
             ))}
             {sortedAvailableCastles.length === 0 && (

@@ -2,6 +2,7 @@ import React from 'react';
 import { Castle, Tile, GameState } from '@/types/game';
 import { cn } from '@/lib/utils';
 import { BOARD_ROWS, BOARD_COLS } from '@/utils/gameLogic';
+import CastleIcon from './CastleIcon';
 
 interface GameBoardProps {
   gameState: GameState;
@@ -35,16 +36,13 @@ const GameBoard: React.FC<GameBoardProps> = ({
         {cell && (
           <div className="w-full h-full flex flex-col items-center justify-center p-2">
             {'rank' in cell ? (
-              // Castle
-              <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md",
-                cell.color === 'red' && "bg-red-500",
-                cell.color === 'blue' && "bg-blue-500",
-                cell.color === 'yellow' && "bg-yellow-500",
-                cell.color === 'green' && "bg-green-500"
-              )}>
-                {cell.rank}
-              </div>
+              // Castle - use the new CastleIcon component
+              <CastleIcon 
+                rank={cell.rank} 
+                color={cell.color} 
+                size="md"
+                className="drop-shadow-sm"
+              />
             ) : (
               // Tile
               <div className={cn(

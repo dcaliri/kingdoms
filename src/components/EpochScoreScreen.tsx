@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getGameState } from '@/utils/supabaseRoomManager';
 import { toast } from 'sonner';
+import CastleIcon from './CastleIcon';
 
 interface EpochScoreScreenProps {
   gameState: GameState;
@@ -202,16 +203,13 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
         {cell && (
           <div className="w-full h-full flex flex-col items-center justify-center p-1">
             {'rank' in cell ? (
-              // Castle
-              <div className={cn(
-                "w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-sm",
-                cell.color === 'red' && "bg-red-500",
-                cell.color === 'blue' && "bg-blue-500",
-                cell.color === 'yellow' && "bg-yellow-500",
-                cell.color === 'green' && "bg-green-500"
-              )}>
-                {cell.rank}
-              </div>
+              // Castle - use the new CastleIcon component
+              <CastleIcon 
+                rank={cell.rank} 
+                color={cell.color} 
+                size="sm"
+                className="w-full h-full"
+              />
             ) : (
               // Tile
               <div className={cn(
