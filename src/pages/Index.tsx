@@ -7,6 +7,7 @@ import GameBoard from '@/components/GameBoard';
 import PlayerPanel from '@/components/PlayerPanel';
 import GameActions from '@/components/GameActions';
 import ScoreDisplay from '@/components/ScoreDisplay';
+import EpochScoreScreen from '@/components/EpochScoreScreen';
 import { useGamePlay } from '@/hooks/useGamePlay';
 import { supabase } from '@/integrations/supabase/client';
 import { getRoom, getGameState } from '@/utils/supabaseRoomManager';
@@ -27,13 +28,17 @@ const Index = () => {
     selectedCastle,
     selectedTile,
     hasSelectedStartingTile,
+    showEpochScores,
+    epochScores,
+    completedEpoch,
     setSelectedCastle,
     drawAndPlaceTile,
     handleCellClick,
     selectStartingTile,
     passTurn,
     abandonGame,
-    endGame
+    endGame,
+    continueToNextEpoch
   } = useGamePlay(gameState, playerId, room?.id || '', setGameState);
 
   // Restore session on page load
@@ -261,6 +266,20 @@ const Index = () => {
           <p>Loading game...</p>
         </div>
       </div>
+    );
+  }
+
+  // Show epoch score screen if needed
+  if (showEpochScores) {
+    const isHost = gameState.players[0]?.id === playerId;
+    return (
+      <EpochScoreScreen
+        gameState={gameState}
+        epochScores={epochScores}
+        epochNumber={completedEpoch}
+        onContinue={continueToNextEpoch}
+        isHost={isHost}
+      />
     );
   }
 

@@ -13,6 +13,9 @@ export const useGamePlay = (
   const [selectedCastle, setSelectedCastle] = useState<Castle | undefined>();
   const [selectedTile, setSelectedTile] = useState<Tile | undefined>();
   const [hasSelectedStartingTile, setHasSelectedStartingTile] = useState(false);
+  const [showEpochScores, setShowEpochScores] = useState(false);
+  const [epochScores, setEpochScores] = useState<{ [playerId: string]: number }>({});
+  const [completedEpoch, setCompletedEpoch] = useState<number>(0);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateRef = useRef<number>(Date.now());
   const epochEndProcessedRef = useRef<string>(''); // Track processed epochs to avoid duplicates
@@ -58,7 +61,7 @@ export const useGamePlay = (
     }
   }, [gameState, playerId]);
 
-  // Check for epoch end after each game state change - with more aggressive detection
+  // Check for epoch end after each game state change
   useEffect(() => {
     if (!gameState || gameState.gamePhase !== 'playing') return;
 
@@ -112,13 +115,6 @@ export const useGamePlay = (
         const scores = calculateScore(gameState);
         console.log('Epoch scores:', scores);
 
-        // Create detailed score message
-        const scoreDetails = gameState.players.map(player => 
-          `${player.name}: ${scores[player.id] || 0} points`
-        ).join(', ');
-
-        console.log('Score details:', scoreDetails);
-
         // Update players with their earned gold
         const updatedPlayers = gameState.players.map(player => ({
           ...player,
@@ -127,107 +123,22 @@ export const useGamePlay = (
 
         console.log('Updated player gold:', updatedPlayers.map(p => ({ name: p.name, gold: p.gold })));
 
-        if (gameState.epoch === 3) {
-          // Game is finished
-          console.log('=== GAME FINISHED ===');
-          
-          const winner = updatedPlayers.reduce((prev, current) => 
-            current.gold > prev.gold ? current : prev
-          );
+        // Update the game state with new gold but keep it in the same epoch
+        // We'll transition to next epoch when user clicks continue
+        const updatedGameState = {
+          ...gameState,
+          players: updatedPlayers,
+          scores: { ...gameState.scores, [`epoch${gameState.epoch}`]: scores }
+        };
 
-          console.log('Winner:', winner.name, 'with', winner.gold, 'gold');
+        await saveGameState(updatedGameState);
 
-          const finalGameState = {
-            ...gameState,
-            players: updatedPlayers,
-            gamePhase: 'finished' as const,
-            winner,
-            scores: { ...gameState.scores, [`epoch${gameState.epoch}`]: scores }
-          };
+        // Show the epoch score screen
+        setEpochScores(scores);
+        setCompletedEpoch(gameState.epoch);
+        setShowEpochScores(true);
 
-          // Show final scores
-          toast.success(`Epoch ${gameState.epoch} complete! Scores: ${scoreDetails}`, { duration: 5000 });
-          setTimeout(() => {
-            toast.success(`Game Over! ${winner.name} wins with ${winner.gold} gold!`, { duration: 8000 });
-          }, 2000);
-
-          await saveGameState(finalGameState);
-        } else {
-          // Start next epoch
-          console.log('=== STARTING NEXT EPOCH ===');
-          const nextEpoch = (gameState.epoch + 1) as 1 | 2 | 3;
-          console.log('Next epoch:', nextEpoch);
-
-          // Reset players for next epoch with CORRECT castle logic
-          const resetPlayers = updatedPlayers.map(player => {
-            console.log(`=== RESETTING ${player.name} FOR NEXT EPOCH ===`);
-            
-            // Get all castles that were NOT placed on the board (unplayed castles)
-            const unplayedCastles = player.castles.filter(castle => !castle.position);
-            console.log(`${player.name} unplayed castles:`, unplayedCastles.map(c => `Rank ${c.rank}`));
-            
-            // Get ALL rank 1 castles (both played and unplayed) and reset their positions
-            const allRank1Castles = createInitialCastles(player.color, gameState.players.length)
-              .filter(c => c.rank === 1)
-              .map(c => ({ ...c, position: undefined }));
-            console.log(`${player.name} gets ${allRank1Castles.length} rank 1 castles back`);
-            
-            // Combine unplayed higher-rank castles with all rank 1 castles
-            // Remove any rank 1 castles from unplayed to avoid duplicates
-            const unplayedHigherRank = unplayedCastles.filter(c => c.rank > 1);
-            const finalCastles = [...unplayedHigherRank, ...allRank1Castles];
-            
-            console.log(`${player.name} final castles for next epoch:`, finalCastles.map(c => `Rank ${c.rank}`));
-            
-            return {
-              ...player,
-              castles: finalCastles,
-              startingTile: undefined
-            };
-          });
-
-          // Create new tiles and give starting tiles
-          const shuffledTiles = shuffleArray(createInitialTiles());
-          console.log('Created', shuffledTiles.length, 'new tiles for next epoch');
-          
-          resetPlayers.forEach(player => {
-            if (shuffledTiles.length > 0) {
-              player.startingTile = shuffledTiles.pop();
-              console.log(`Gave ${player.name} starting tile:`, player.startingTile?.name);
-            }
-          });
-
-          // Determine first player (richest player goes first)
-          const sortedPlayers = [...resetPlayers].sort((a, b) => b.gold - a.gold);
-          const newFirstPlayerIndex = resetPlayers.findIndex(p => p.id === sortedPlayers[0].id);
-          console.log('First player for next epoch:', sortedPlayers[0].name);
-
-          const nextEpochGameState = {
-            ...gameState,
-            players: resetPlayers,
-            epoch: nextEpoch,
-            board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
-            tileSupply: shuffledTiles,
-            currentPlayerIndex: newFirstPlayerIndex,
-            scores: { ...gameState.scores, [`epoch${gameState.epoch}`]: scores }
-          };
-
-          console.log('=== NEXT EPOCH GAME STATE ===');
-          console.log('Epoch:', nextEpochGameState.epoch);
-          console.log('Current player:', nextEpochGameState.players[nextEpochGameState.currentPlayerIndex].name);
-          console.log('Tiles in supply:', nextEpochGameState.tileSupply.length);
-
-          // Show epoch completion with scores - longer duration and staggered
-          toast.success(`🏆 Epoch ${gameState.epoch} Complete! 🏆`, { duration: 4000 });
-          setTimeout(() => {
-            toast.success(`📊 Scores: ${scoreDetails}`, { duration: 6000 });
-          }, 1000);
-          setTimeout(() => {
-            toast.success(`🚀 Starting Epoch ${nextEpoch}! ${sortedPlayers[0].name} goes first!`, { duration: 5000 });
-          }, 3000);
-
-          await saveGameState(nextEpochGameState);
-        }
+        toast.success(`Epoch ${gameState.epoch} complete! View the results.`);
       }
     };
 
@@ -236,6 +147,105 @@ export const useGamePlay = (
     const timer = setTimeout(checkEpochEnd, 100);
     return () => clearTimeout(timer);
   }, [gameState, playerId, saveGameState]);
+
+  // Function to continue to next epoch (called from score screen)
+  const continueToNextEpoch = useCallback(async () => {
+    if (!gameState) return;
+
+    console.log('=== CONTINUING TO NEXT EPOCH ===');
+    
+    if (gameState.epoch === 3) {
+      // Game is finished
+      console.log('=== GAME FINISHED ===');
+      
+      const winner = gameState.players.reduce((prev, current) => 
+        current.gold > prev.gold ? current : prev
+      );
+
+      console.log('Winner:', winner.name, 'with', winner.gold, 'gold');
+
+      const finalGameState = {
+        ...gameState,
+        gamePhase: 'finished' as const,
+        winner
+      };
+
+      await saveGameState(finalGameState);
+      setShowEpochScores(false);
+      toast.success(`Game Over! ${winner.name} wins with ${winner.gold} gold!`);
+    } else {
+      // Start next epoch
+      console.log('=== STARTING NEXT EPOCH ===');
+      const nextEpoch = (gameState.epoch + 1) as 1 | 2 | 3;
+      console.log('Next epoch:', nextEpoch);
+
+      // Reset players for next epoch with CORRECT castle logic
+      const resetPlayers = gameState.players.map(player => {
+        console.log(`=== RESETTING ${player.name} FOR NEXT EPOCH ===`);
+        
+        // Get all castles that were NOT placed on the board (unplayed castles)
+        const unplayedCastles = player.castles.filter(castle => !castle.position);
+        console.log(`${player.name} unplayed castles:`, unplayedCastles.map(c => `Rank ${c.rank}`));
+        
+        // Get ALL rank 1 castles (both played and unplayed) and reset their positions
+        const allRank1Castles = createInitialCastles(player.color, gameState.players.length)
+          .filter(c => c.rank === 1)
+          .map(c => ({ ...c, position: undefined }));
+        console.log(`${player.name} gets ${allRank1Castles.length} rank 1 castles back`);
+        
+        // Combine unplayed higher-rank castles with all rank 1 castles
+        // Remove any rank 1 castles from unplayed to avoid duplicates
+        const unplayedHigherRank = unplayedCastles.filter(c => c.rank > 1);
+        const finalCastles = [...unplayedHigherRank, ...allRank1Castles];
+        
+        console.log(`${player.name} final castles for next epoch:`, finalCastles.map(c => `Rank ${c.rank}`));
+        
+        return {
+          ...player,
+          castles: finalCastles,
+          startingTile: undefined
+        };
+      });
+
+      // Create new tiles and give starting tiles
+      const shuffledTiles = shuffleArray(createInitialTiles());
+      console.log('Created', shuffledTiles.length, 'new tiles for next epoch');
+      
+      resetPlayers.forEach(player => {
+        if (shuffledTiles.length > 0) {
+          player.startingTile = shuffledTiles.pop();
+          console.log(`Gave ${player.name} starting tile:`, player.startingTile?.name);
+        }
+      });
+
+      // Determine first player (richest player goes first)
+      const sortedPlayers = [...resetPlayers].sort((a, b) => b.gold - a.gold);
+      const newFirstPlayerIndex = resetPlayers.findIndex(p => p.id === sortedPlayers[0].id);
+      console.log('First player for next epoch:', sortedPlayers[0].name);
+
+      const nextEpochGameState = {
+        ...gameState,
+        players: resetPlayers,
+        epoch: nextEpoch,
+        board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
+        tileSupply: shuffledTiles,
+        currentPlayerIndex: newFirstPlayerIndex
+      };
+
+      console.log('=== NEXT EPOCH GAME STATE ===');
+      console.log('Epoch:', nextEpochGameState.epoch);
+      console.log('Current player:', nextEpochGameState.players[nextEpochGameState.currentPlayerIndex].name);
+      console.log('Tiles in supply:', nextEpochGameState.tileSupply.length);
+
+      await saveGameState(nextEpochGameState);
+      setShowEpochScores(false);
+      
+      // Reset epoch end processing for next epoch
+      epochEndProcessedRef.current = '';
+      
+      toast.success(`Starting Epoch ${nextEpoch}! ${sortedPlayers[0].name} goes first!`);
+    }
+  }, [gameState, saveGameState]);
 
   // Fallback polling mechanism
   useEffect(() => {
@@ -620,12 +630,16 @@ export const useGamePlay = (
     selectedCastle,
     selectedTile,
     hasSelectedStartingTile,
+    showEpochScores,
+    epochScores,
+    completedEpoch,
     setSelectedCastle,
     drawAndPlaceTile,
     handleCellClick,
     selectStartingTile,
     passTurn,
     abandonGame,
-    endGame
+    endGame,
+    continueToNextEpoch
   };
 };
