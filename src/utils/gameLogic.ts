@@ -131,43 +131,76 @@ export const canPlayerAct = (player: Player, gameState: GameState): boolean => {
 };
 
 export const calculateScore = (gameState: GameState): { [playerId: string]: number } => {
+  console.log('=== CALCULATING SCORES ===');
+  console.log('Board state:', gameState.board);
+  console.log('Players:', gameState.players.map(p => ({ name: p.name, id: p.id, color: p.color })));
+  
   const scores: { [playerId: string]: number } = {};
   
+  // Create color to player ID mapping
+  const colorToPlayerId: { [color: string]: string } = {};
   gameState.players.forEach(player => {
     scores[player.id] = 0;
+    colorToPlayerId[player.color] = player.id;
+    console.log(`Initialized ${player.name} (${player.id}, ${player.color}) score to 0`);
   });
   
+  console.log('Color to Player ID mapping:', colorToPlayerId);
+  
   // Score each row
+  console.log('=== SCORING ROWS ===');
   for (let row = 0; row < BOARD_ROWS; row++) {
-    const rowScores = calculateRowScore(gameState.board, row);
+    console.log(`Scoring row ${row}:`, gameState.board[row]);
+    const rowScores = calculateRowScore(gameState.board, row, colorToPlayerId);
+    console.log(`Row ${row} scores:`, rowScores);
     Object.entries(rowScores).forEach(([playerId, score]) => {
       scores[playerId] += score;
+      const player = gameState.players.find(p => p.id === playerId);
+      console.log(`Added ${score} to ${player?.name || playerId}, new total: ${scores[playerId]}`);
     });
   }
   
   // Score each column
+  console.log('=== SCORING COLUMNS ===');
   for (let col = 0; col < BOARD_COLS; col++) {
-    const colScores = calculateColumnScore(gameState.board, col);
+    const colCells = gameState.board.map(row => row[col]);
+    console.log(`Scoring column ${col}:`, colCells);
+    const colScores = calculateColumnScore(gameState.board, col, colorToPlayerId);
+    console.log(`Column ${col} scores:`, colScores);
     Object.entries(colScores).forEach(([playerId, score]) => {
       scores[playerId] += score;
+      const player = gameState.players.find(p => p.id === playerId);
+      console.log(`Added ${score} to ${player?.name || playerId}, new total: ${scores[playerId]}`);
     });
   }
+  
+  console.log('=== FINAL SCORES ===');
+  Object.entries(scores).forEach(([playerId, score]) => {
+    const player = gameState.players.find(p => p.id === playerId);
+    console.log(`${player?.name || playerId}: ${score} points`);
+  });
   
   return scores;
 };
 
-const calculateRowScore = (board: (Castle | Tile | null)[][], row: number): { [playerId: string]: number } => {
+const calculateRowScore = (board: (Castle | Tile | null)[][], row: number, colorToPlayerId: { [color: string]: string }): { [playerId: string]: number } => {
   const scores: { [playerId: string]: number } = {};
   const rowCells = board[row];
+  
+  console.log(`  Calculating row ${row} score for cells:`, rowCells);
   
   // Find mountains to split the row
   const mountainIndices = rowCells
     .map((cell, index) => cell && 'type' in cell && cell.type === 'mountain' ? index : -1)
     .filter(index => index !== -1);
   
+  console.log(`  Mountains in row ${row} at indices:`, mountainIndices);
+  
   if (mountainIndices.length === 0) {
     // Score entire row
-    return calculateSegmentScore(rowCells, board, row, 'row');
+    const segmentScores = calculateSegmentScore(rowCells, board, row, 'row', colorToPlayerId);
+    console.log(`  Row ${row} segment scores:`, segmentScores);
+    return segmentScores;
   } else {
     // Score segments separated by mountains
     const segments: (Castle | Tile | null)[][] = [];
@@ -184,8 +217,11 @@ const calculateRowScore = (board: (Castle | Tile | null)[][], row: number): { [p
       segments.push(rowCells.slice(start));
     }
     
-    segments.forEach(segment => {
-      const segmentScores = calculateSegmentScore(segment, board, row, 'row');
+    console.log(`  Row ${row} segments:`, segments);
+    
+    segments.forEach((segment, segIndex) => {
+      const segmentScores = calculateSegmentScore(segment, board, row, 'row', colorToPlayerId);
+      console.log(`  Row ${row} segment ${segIndex} scores:`, segmentScores);
       Object.entries(segmentScores).forEach(([playerId, score]) => {
         scores[playerId] = (scores[playerId] || 0) + score;
       });
@@ -195,18 +231,24 @@ const calculateRowScore = (board: (Castle | Tile | null)[][], row: number): { [p
   }
 };
 
-const calculateColumnScore = (board: (Castle | Tile | null)[][], col: number): { [playerId: string]: number } => {
+const calculateColumnScore = (board: (Castle | Tile | null)[][], col: number, colorToPlayerId: { [color: string]: string }): { [playerId: string]: number } => {
   const scores: { [playerId: string]: number } = {};
   const colCells = board.map(row => row[col]);
+  
+  console.log(`  Calculating column ${col} score for cells:`, colCells);
   
   // Find mountains to split the column
   const mountainIndices = colCells
     .map((cell, index) => cell && 'type' in cell && cell.type === 'mountain' ? index : -1)
     .filter(index => index !== -1);
   
+  console.log(`  Mountains in column ${col} at indices:`, mountainIndices);
+  
   if (mountainIndices.length === 0) {
     // Score entire column
-    return calculateSegmentScore(colCells, board, col, 'column');
+    const segmentScores = calculateSegmentScore(colCells, board, col, 'column', colorToPlayerId);
+    console.log(`  Column ${col} segment scores:`, segmentScores);
+    return segmentScores;
   } else {
     // Score segments separated by mountains
     const segments: (Castle | Tile | null)[][] = [];
@@ -223,8 +265,11 @@ const calculateColumnScore = (board: (Castle | Tile | null)[][], col: number): {
       segments.push(colCells.slice(start));
     }
     
-    segments.forEach(segment => {
-      const segmentScores = calculateSegmentScore(segment, board, col, 'column');
+    console.log(`  Column ${col} segments:`, segments);
+    
+    segments.forEach((segment, segIndex) => {
+      const segmentScores = calculateSegmentScore(segment, board, col, 'column', colorToPlayerId);
+      console.log(`  Column ${col} segment ${segIndex} scores:`, segmentScores);
       Object.entries(segmentScores).forEach(([playerId, score]) => {
         scores[playerId] = (scores[playerId] || 0) + score;
       });
@@ -238,25 +283,34 @@ const calculateSegmentScore = (
   segment: (Castle | Tile | null)[], 
   board: (Castle | Tile | null)[][], 
   lineIndex: number, 
-  lineType: 'row' | 'column'
+  lineType: 'row' | 'column',
+  colorToPlayerId: { [color: string]: string }
 ): { [playerId: string]: number } => {
   const scores: { [playerId: string]: number } = {};
   
+  console.log(`    Calculating segment score for ${lineType} ${lineIndex}:`, segment);
+  
   // Check for dragon - cancels all resource tiles
   const hasDragon = segment.some(cell => cell && 'type' in cell && cell.type === 'dragon');
+  console.log(`    Has dragon: ${hasDragon}`);
   
   // Check for gold mine - doubles all tile values
   const hasGoldMine = segment.some(cell => cell && 'type' in cell && cell.type === 'goldmine');
+  console.log(`    Has gold mine: ${hasGoldMine}`);
   
   // Calculate base value from tiles
   let baseValue = 0;
-  segment.forEach(cell => {
+  segment.forEach((cell, index) => {
     if (cell && 'type' in cell) {
       const tile = cell as Tile;
       if (tile.type === 'resource' && !hasDragon) {
         baseValue += tile.value;
+        console.log(`    Added resource tile ${tile.name} (+${tile.value}), base value now: ${baseValue}`);
       } else if (tile.type === 'hazard') {
         baseValue += tile.value; // hazard values are negative
+        console.log(`    Added hazard tile ${tile.name} (${tile.value}), base value now: ${baseValue}`);
+      } else if (tile.type === 'resource' && hasDragon) {
+        console.log(`    Resource tile ${tile.name} cancelled by dragon`);
       }
     }
   });
@@ -264,7 +318,10 @@ const calculateSegmentScore = (
   // Apply gold mine doubling
   if (hasGoldMine) {
     baseValue *= 2;
+    console.log(`    Gold mine doubled base value to: ${baseValue}`);
   }
+  
+  console.log(`    Final base value for segment: ${baseValue}`);
   
   // Calculate castle ranks for each player
   const playerCastleRanks: { [playerId: string]: number } = {};
@@ -281,16 +338,25 @@ const calculateSegmentScore = (
       
       if (isAdjacentToWizard(board, row, col)) {
         effectiveRank += 1;
+        console.log(`    Castle at (${row}, ${col}) gets wizard bonus, rank ${castle.rank} -> ${effectiveRank}`);
       }
       
-      const playerId = castle.color;
-      playerCastleRanks[playerId] = (playerCastleRanks[playerId] || 0) + effectiveRank;
+      // Convert color to player ID
+      const playerId = colorToPlayerId[castle.color];
+      if (playerId) {
+        playerCastleRanks[playerId] = (playerCastleRanks[playerId] || 0) + effectiveRank;
+        console.log(`    Added castle rank ${effectiveRank} for player ${playerId} (color: ${castle.color}), total rank: ${playerCastleRanks[playerId]}`);
+      } else {
+        console.error(`    Could not find player ID for castle color: ${castle.color}`);
+      }
     }
   });
   
   // Calculate final scores
   Object.entries(playerCastleRanks).forEach(([playerId, totalRank]) => {
-    scores[playerId] = baseValue * totalRank;
+    const finalScore = baseValue * totalRank;
+    scores[playerId] = finalScore;
+    console.log(`    Player ${playerId}: ${baseValue} × ${totalRank} = ${finalScore} points`);
   });
   
   return scores;

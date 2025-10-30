@@ -61,6 +61,37 @@ export const useGamePlay = (
     }
   }, [gameState, playerId]);
 
+  // Listen for epoch score data in game state and show score screen for ALL players
+  useEffect(() => {
+    if (!gameState) return;
+
+    // Check if there are epoch scores stored in the game state that we haven't shown yet
+    const latestEpochKey = `epoch${gameState.epoch}`;
+    const storedScores = gameState.scores?.[latestEpochKey];
+    
+    console.log('=== CHECKING FOR STORED EPOCH SCORES ===');
+    console.log('Current epoch:', gameState.epoch);
+    console.log('Latest epoch key:', latestEpochKey);
+    console.log('Stored scores:', storedScores);
+    console.log('Currently showing scores:', showEpochScores);
+    console.log('Completed epoch:', completedEpoch);
+
+    // Show score screen if:
+    // 1. We have stored scores for current epoch
+    // 2. We're not already showing the score screen
+    // 3. The completed epoch doesn't match current epoch (new scores available)
+    if (storedScores && !showEpochScores && completedEpoch !== gameState.epoch) {
+      console.log('=== SHOWING EPOCH SCORES FOR ALL PLAYERS ===');
+      console.log('Epoch scores to show:', storedScores);
+      
+      setEpochScores(storedScores);
+      setCompletedEpoch(gameState.epoch);
+      setShowEpochScores(true);
+      
+      toast.success(`Epoch ${gameState.epoch} complete! View the results.`);
+    }
+  }, [gameState, showEpochScores, completedEpoch]);
+
   // Check for epoch end after each game state change
   useEffect(() => {
     if (!gameState || gameState.gamePhase !== 'playing') return;
@@ -111,34 +142,51 @@ export const useGamePlay = (
 
         console.log('Host triggering epoch end...');
 
-        // Calculate scores for this epoch
+        // Calculate scores for this epoch using the CURRENT board state
+        console.log('=== CALCULATING SCORES ===');
+        console.log('Board state for scoring:', gameState.board);
+        console.log('Players for scoring:', gameState.players.map(p => ({ 
+          name: p.name, 
+          castles: p.castles.filter(c => c.position).length 
+        })));
+
         const scores = calculateScore(gameState);
-        console.log('Epoch scores:', scores);
+        console.log('=== CALCULATED EPOCH SCORES ===');
+        console.log('Raw scores:', scores);
+
+        // Ensure all players have a score (even if 0)
+        const completeScores: { [playerId: string]: number } = {};
+        gameState.players.forEach(player => {
+          completeScores[player.id] = scores[player.id] || 0;
+          console.log(`${player.name} (${player.id}): ${completeScores[player.id]} points`);
+        });
 
         // Update players with their earned gold
         const updatedPlayers = gameState.players.map(player => ({
           ...player,
-          gold: Math.max(0, player.gold + (scores[player.id] || 0))
+          gold: Math.max(0, player.gold + (completeScores[player.id] || 0))
         }));
 
         console.log('Updated player gold:', updatedPlayers.map(p => ({ name: p.name, gold: p.gold })));
 
-        // Update the game state with new gold but keep it in the same epoch
-        // We'll transition to next epoch when user clicks continue
+        // Update the game state with new gold AND store the epoch scores
         const updatedGameState = {
           ...gameState,
           players: updatedPlayers,
-          scores: { ...gameState.scores, [`epoch${gameState.epoch}`]: scores }
+          scores: { 
+            ...gameState.scores, 
+            [`epoch${gameState.epoch}`]: completeScores 
+          }
         };
+
+        console.log('=== SAVING GAME STATE WITH EPOCH SCORES ===');
+        console.log('Scores being saved:', completeScores);
+        console.log('Full scores object:', updatedGameState.scores);
 
         await saveGameState(updatedGameState);
 
-        // Show the epoch score screen
-        setEpochScores(scores);
-        setCompletedEpoch(gameState.epoch);
-        setShowEpochScores(true);
-
-        toast.success(`Epoch ${gameState.epoch} complete! View the results.`);
+        // The score screen will be shown by the useEffect that watches for stored scores
+        console.log('=== EPOCH END PROCESSING COMPLETE ===');
       }
     };
 
