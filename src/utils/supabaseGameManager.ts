@@ -7,6 +7,19 @@ export const saveGameState = async (roomId: string, gameState: GameState): Promi
     console.log('Room ID:', roomId);
     console.log('Game State:', gameState);
     
+    // First, let's check if we can access the games table at all
+    const { data: testData, error: testError } = await supabase
+      .from('games')
+      .select('count')
+      .limit(1);
+    
+    console.log('Test query result:', { testData, testError });
+    
+    if (testError) {
+      console.error('Cannot access games table:', testError);
+      throw new Error(`Database access error: ${testError.message}`);
+    }
+    
     const gameData = {
       room_id: roomId,
       game_state: gameState,
@@ -17,21 +30,51 @@ export const saveGameState = async (roomId: string, gameState: GameState): Promi
     
     console.log('Data to save:', gameData);
     
-    const { data, error } = await supabase
+    // Try insert first, then update if it exists
+    const { data: insertData, error: insertError } = await supabase
       .from('games')
-      .upsert(gameData, {
-        onConflict: 'room_id'
-      })
+      .insert(gameData)
       .select();
 
-    if (error) {
-      console.error('=== SAVE ERROR ===');
-      console.error('Error details:', error);
-      throw error;
+    if (insertError) {
+      console.log('Insert failed, trying update:', insertError);
+      
+      // If insert failed, try update
+      const { data: updateData, error: updateError } = await supabase
+        .from('games')
+        .update(gameData)
+        .eq('room_id', roomId)
+        .select();
+
+      if (updateError) {
+        console.error('=== BOTH INSERT AND UPDATE FAILED ===');
+        console.error('Insert error:', insertError);
+        console.error('Update error:', updateError);
+        throw new Error(`Failed to save game state: ${updateError.message}`);
+      }
+
+      console.log('=== UPDATE SUCCESS ===');
+      console.log('Updated data:', updateData);
+    } else {
+      console.log('=== INSERT SUCCESS ===');
+      console.log('Inserted data:', insertData);
     }
 
-    console.log('=== SAVE SUCCESS ===');
-    console.log('Saved data:', data);
+    // Verify the save by reading it back
+    const { data: verifyData, error: verifyError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('room_id', roomId)
+      .single();
+
+    if (verifyError) {
+      console.error('=== VERIFICATION FAILED ===');
+      console.error('Verify error:', verifyError);
+    } else {
+      console.log('=== VERIFICATION SUCCESS ===');
+      console.log('Verified data:', verifyData);
+    }
+
   } catch (error) {
     console.error('=== SAVE FAILED ===');
     console.error('Failed to save game state:', error);
@@ -169,6 +212,7 @@ export const debugListAllGames = async (): Promise<void> => {
     }
 
     console.log('All games in database:', data);
+    console.log('Number of games:', data?.length || 0);
   } catch (error) {
     console.error('Failed to list games:', error);
   }
