@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, Castle, Tile } from '@/types/game';
-import { isValidPosition, calculateScore, canPlayerAct, createInitialTiles, shuffleArray, BOARD_ROWS, BOARD_COLS } from '@/utils/gameLogic';
+import { isValidPosition, calculateScore, canPlayerAct, createInitialTiles, shuffleArray, BOARD_ROWS, BOARD_COLS, createInitialCastles } from '@/utils/gameLogic';
 import { updateGameState, getGameState } from '@/utils/supabaseRoomManager';
 import { toast } from 'sonner';
 
@@ -91,6 +91,11 @@ export const useGamePlay = (
         const scores = calculateScore(gameState);
         console.log('Epoch scores:', scores);
 
+        // Create detailed score message
+        const scoreDetails = gameState.players.map(player => 
+          `${player.name}: ${scores[player.id] || 0} points`
+        ).join(', ');
+
         // Update players with their earned gold
         const updatedPlayers = gameState.players.map(player => ({
           ...player,
@@ -117,26 +122,43 @@ export const useGamePlay = (
             scores: { ...gameState.scores, [`epoch${gameState.epoch}`]: scores }
           };
 
+          // Show final scores
+          toast.success(`Epoch ${gameState.epoch} scores: ${scoreDetails}`);
+          setTimeout(() => {
+            toast.success(`Game Over! ${winner.name} wins with ${winner.gold} gold!`);
+          }, 2000);
+
           await saveGameState(finalGameState);
-          toast.success(`Game Over! ${winner.name} wins with ${winner.gold} gold!`);
         } else {
           // Start next epoch
           console.log('=== STARTING NEXT EPOCH ===');
           const nextEpoch = (gameState.epoch + 1) as 1 | 2 | 3;
           console.log('Next epoch:', nextEpoch);
 
-          // Reset players for next epoch
+          // Reset players for next epoch with CORRECT castle logic
           const resetPlayers = updatedPlayers.map(player => {
-            // Only rank 1 castles return for next epoch
-            const rank1Castles = player.castles
+            console.log(`=== RESETTING ${player.name} FOR NEXT EPOCH ===`);
+            
+            // Get all castles that were NOT placed on the board (unplayed castles)
+            const unplayedCastles = player.castles.filter(castle => !castle.position);
+            console.log(`${player.name} unplayed castles:`, unplayedCastles.map(c => `Rank ${c.rank}`));
+            
+            // Get ALL rank 1 castles (both played and unplayed) and reset their positions
+            const allRank1Castles = createInitialCastles(player.color, gameState.players.length)
               .filter(c => c.rank === 1)
               .map(c => ({ ...c, position: undefined }));
+            console.log(`${player.name} gets ${allRank1Castles.length} rank 1 castles back`);
             
-            console.log(`${player.name} gets ${rank1Castles.length} rank 1 castles back`);
+            // Combine unplayed higher-rank castles with all rank 1 castles
+            // Remove any rank 1 castles from unplayed to avoid duplicates
+            const unplayedHigherRank = unplayedCastles.filter(c => c.rank > 1);
+            const finalCastles = [...unplayedHigherRank, ...allRank1Castles];
+            
+            console.log(`${player.name} final castles for next epoch:`, finalCastles.map(c => `Rank ${c.rank}`));
             
             return {
               ...player,
-              castles: rank1Castles,
+              castles: finalCastles,
               startingTile: undefined
             };
           });
@@ -172,8 +194,13 @@ export const useGamePlay = (
           console.log('Current player:', nextEpochGameState.players[nextEpochGameState.currentPlayerIndex].name);
           console.log('Tiles in supply:', nextEpochGameState.tileSupply.length);
 
+          // Show epoch completion with scores
+          toast.success(`Epoch ${gameState.epoch} complete! Scores: ${scoreDetails}`);
+          setTimeout(() => {
+            toast.success(`Starting Epoch ${nextEpoch}. ${sortedPlayers[0].name} goes first!`);
+          }, 3000);
+
           await saveGameState(nextEpochGameState);
-          toast.success(`Epoch ${gameState.epoch} complete! Starting Epoch ${nextEpoch}. ${sortedPlayers[0].name} goes first!`);
         }
       }
     };
