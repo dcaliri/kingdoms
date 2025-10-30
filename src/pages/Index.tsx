@@ -31,7 +31,9 @@ const Index = () => {
     drawAndPlaceTile,
     handleCellClick,
     selectStartingTile,
-    passTurn
+    passTurn,
+    abandonGame,
+    endGame
   } = useGamePlay(gameState, playerId, room?.id || '', setGameState);
 
   // Restore session on page load
@@ -208,6 +210,22 @@ const Index = () => {
     clearGameSession();
   };
 
+  const handleAbandonGame = async () => {
+    if (window.confirm('Are you sure you want to abandon the game? This will end the game for all players if you are the last one.')) {
+      await abandonGame();
+      // After abandoning, go back to home
+      setTimeout(() => {
+        handleLeaveRoom();
+      }, 2000); // Give time for the toast message
+    }
+  };
+
+  const handleEndGame = async () => {
+    if (window.confirm('Are you sure you want to end the game? This will calculate final scores and finish the game for all players.')) {
+      await endGame();
+    }
+  };
+
   // Show loading screen while restoring session
   if (isRestoring) {
     return (
@@ -251,9 +269,15 @@ const Index = () => {
       <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
         <div className="text-center bg-white p-8 rounded-lg shadow-lg">
           <h1 className="text-3xl font-bold mb-4">Game Over!</h1>
-          <h2 className="text-2xl text-yellow-600 mb-6">
-            🏆 {gameState.winner?.name} Wins! 🏆
-          </h2>
+          {gameState.winner ? (
+            <h2 className="text-2xl text-yellow-600 mb-6">
+              🏆 {gameState.winner.name} Wins! 🏆
+            </h2>
+          ) : (
+            <h2 className="text-2xl text-gray-600 mb-6">
+              Game Ended
+            </h2>
+          )}
           <div className="space-y-2 mb-6">
             {gameState.players
               .sort((a, b) => b.gold - a.gold)
@@ -359,9 +383,12 @@ const Index = () => {
               currentPlayer={currentPlayer}
               onDrawTile={drawAndPlaceTile}
               onPass={passTurn}
+              onAbandonGame={handleAbandonGame}
+              onEndGame={handleEndGame}
               selectedCastle={selectedCastle}
               selectedTile={selectedTile}
               hasSelectedStartingTile={hasSelectedStartingTile}
+              playerId={playerId}
             />
             <ScoreDisplay gameState={gameState} />
           </div>

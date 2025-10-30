@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, Castle, Tile } from '@/types/game';
-import { isValidPosition } from '@/utils/gameLogic';
+import { isValidPosition, calculateScore } from '@/utils/gameLogic';
 import { updateGameState, getGameState } from '@/utils/supabaseRoomManager';
 import { toast } from 'sonner';
 
@@ -341,6 +341,100 @@ export const useGamePlay = (
     toast.info('Turn passed');
   }, [gameState, playerId, saveGameState]);
 
+  const abandonGame = useCallback(async () => {
+    if (!gameState) return;
+
+    console.log('=== ABANDONING GAME ===');
+    console.log('Player abandoning:', playerId);
+    console.log('Current players:', gameState.players.map(p => p.name));
+
+    // Remove the abandoning player
+    const remainingPlayers = gameState.players.filter(p => p.id !== playerId);
+    
+    console.log('Remaining players:', remainingPlayers.map(p => p.name));
+
+    if (remainingPlayers.length === 0) {
+      // No players left, just end the game
+      const finalGameState = {
+        ...gameState,
+        players: [],
+        gamePhase: 'finished' as const,
+        winner: undefined
+      };
+
+      await saveGameState(finalGameState);
+      toast.info('Game ended - no players remaining');
+      return;
+    }
+
+    if (remainingPlayers.length === 1) {
+      // Only one player left, they win
+      const winner = remainingPlayers[0];
+      const finalGameState = {
+        ...gameState,
+        players: remainingPlayers,
+        gamePhase: 'finished' as const,
+        winner
+      };
+
+      await saveGameState(finalGameState);
+      toast.success(`${winner.name} wins by default!`);
+      return;
+    }
+
+    // Multiple players remaining, continue game
+    let newCurrentPlayerIndex = gameState.currentPlayerIndex;
+    
+    // If the abandoning player was the current player, advance to next
+    const abandoningPlayerIndex = gameState.players.findIndex(p => p.id === playerId);
+    if (abandoningPlayerIndex === gameState.currentPlayerIndex) {
+      newCurrentPlayerIndex = gameState.currentPlayerIndex % remainingPlayers.length;
+    } else if (abandoningPlayerIndex < gameState.currentPlayerIndex) {
+      // Adjust current player index since we removed a player before them
+      newCurrentPlayerIndex = gameState.currentPlayerIndex - 1;
+    }
+
+    const newGameState = {
+      ...gameState,
+      players: remainingPlayers,
+      currentPlayerIndex: newCurrentPlayerIndex
+    };
+
+    await saveGameState(newGameState);
+    toast.info('You have abandoned the game');
+  }, [gameState, playerId, saveGameState]);
+
+  const endGame = useCallback(async () => {
+    if (!gameState) return;
+
+    console.log('=== ENDING GAME ===');
+    console.log('Host ending game:', playerId);
+
+    // Calculate final scores
+    const scores = calculateScore(gameState);
+    
+    // Add current scores to player gold
+    const finalPlayers = gameState.players.map(player => ({
+      ...player,
+      gold: Math.max(0, player.gold + (scores[player.id] || 0))
+    }));
+
+    // Determine winner
+    const winner = finalPlayers.reduce((prev, current) => 
+      current.gold > prev.gold ? current : prev
+    );
+
+    const finalGameState = {
+      ...gameState,
+      players: finalPlayers,
+      gamePhase: 'finished' as const,
+      winner
+    };
+
+    await saveGameState(finalGameState);
+    toast.success(`Game ended! ${winner.name} wins with ${winner.gold} gold!`);
+  }, [gameState, playerId, saveGameState]);
+
   return {
     selectedCastle,
     selectedTile,
@@ -349,6 +443,8 @@ export const useGamePlay = (
     drawAndPlaceTile,
     handleCellClick,
     selectStartingTile,
-    passTurn
+    passTurn,
+    abandonGame,
+    endGame
   };
 };
