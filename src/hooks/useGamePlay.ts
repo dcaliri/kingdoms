@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, Castle, Tile } from '@/types/game';
-import { isValidPosition, calculateScore } from '@/utils/gameLogic';
+import { isValidPosition, calculateScore, canPlayerAct, createInitialTiles, shuffleArray, BOARD_ROWS, BOARD_COLS } from '@/utils/gameLogic';
 import { updateGameState, getGameState } from '@/utils/supabaseRoomManager';
 import { toast } from 'sonner';
 
@@ -27,6 +27,132 @@ export const useGamePlay = (
       }
     }
   }, [gameState, playerId]);
+
+  // Check for epoch end after each game state change
+  useEffect(() => {
+    if (!gameState || gameState.gamePhase !== 'playing') return;
+
+    const checkEpochEnd = async () => {
+      console.log('=== CHECKING EPOCH END ===');
+      console.log('Current epoch:', gameState.epoch);
+      console.log('Game phase:', gameState.gamePhase);
+
+      // Check if board is full
+      const boardFull = gameState.board.every(row => row.every(cell => cell !== null));
+      console.log('Board full:', boardFull);
+
+      // Check if no player can act
+      const noPlayerCanAct = gameState.players.every(player => !canPlayerAct(player, gameState));
+      console.log('No player can act:', noPlayerCanAct);
+      console.log('Players can act:', gameState.players.map(p => ({ name: p.name, canAct: canPlayerAct(p, gameState) })));
+
+      if (boardFull || noPlayerCanAct) {
+        console.log('=== EPOCH SHOULD END ===');
+        
+        // Only the first player (host) should trigger epoch transition to avoid duplicates
+        const isHost = gameState.players[0]?.id === playerId;
+        if (!isHost) {
+          console.log('Not host, waiting for host to trigger epoch end');
+          return;
+        }
+
+        console.log('Host triggering epoch end...');
+
+        // Calculate scores for this epoch
+        const scores = calculateScore(gameState);
+        console.log('Epoch scores:', scores);
+
+        // Update players with their earned gold
+        const updatedPlayers = gameState.players.map(player => ({
+          ...player,
+          gold: Math.max(0, player.gold + (scores[player.id] || 0))
+        }));
+
+        console.log('Updated player gold:', updatedPlayers.map(p => ({ name: p.name, gold: p.gold })));
+
+        if (gameState.epoch === 3) {
+          // Game is finished
+          console.log('=== GAME FINISHED ===');
+          
+          const winner = updatedPlayers.reduce((prev, current) => 
+            current.gold > prev.gold ? current : prev
+          );
+
+          console.log('Winner:', winner.name, 'with', winner.gold, 'gold');
+
+          const finalGameState = {
+            ...gameState,
+            players: updatedPlayers,
+            gamePhase: 'finished' as const,
+            winner,
+            scores: { ...gameState.scores, [`epoch${gameState.epoch}`]: scores }
+          };
+
+          await saveGameState(finalGameState);
+          toast.success(`Game Over! ${winner.name} wins with ${winner.gold} gold!`);
+        } else {
+          // Start next epoch
+          console.log('=== STARTING NEXT EPOCH ===');
+          const nextEpoch = (gameState.epoch + 1) as 1 | 2 | 3;
+          console.log('Next epoch:', nextEpoch);
+
+          // Reset players for next epoch
+          const resetPlayers = updatedPlayers.map(player => {
+            // Only rank 1 castles return for next epoch
+            const rank1Castles = player.castles
+              .filter(c => c.rank === 1)
+              .map(c => ({ ...c, position: undefined }));
+            
+            console.log(`${player.name} gets ${rank1Castles.length} rank 1 castles back`);
+            
+            return {
+              ...player,
+              castles: rank1Castles,
+              startingTile: undefined
+            };
+          });
+
+          // Create new tiles and give starting tiles
+          const shuffledTiles = shuffleArray(createInitialTiles());
+          console.log('Created', shuffledTiles.length, 'new tiles for next epoch');
+          
+          resetPlayers.forEach(player => {
+            if (shuffledTiles.length > 0) {
+              player.startingTile = shuffledTiles.pop();
+              console.log(`Gave ${player.name} starting tile:`, player.startingTile?.name);
+            }
+          });
+
+          // Determine first player (richest player goes first)
+          const sortedPlayers = [...resetPlayers].sort((a, b) => b.gold - a.gold);
+          const newFirstPlayerIndex = resetPlayers.findIndex(p => p.id === sortedPlayers[0].id);
+          console.log('First player for next epoch:', sortedPlayers[0].name);
+
+          const nextEpochGameState = {
+            ...gameState,
+            players: resetPlayers,
+            epoch: nextEpoch,
+            board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
+            tileSupply: shuffledTiles,
+            currentPlayerIndex: newFirstPlayerIndex,
+            scores: { ...gameState.scores, [`epoch${gameState.epoch}`]: scores }
+          };
+
+          console.log('=== NEXT EPOCH GAME STATE ===');
+          console.log('Epoch:', nextEpochGameState.epoch);
+          console.log('Current player:', nextEpochGameState.players[nextEpochGameState.currentPlayerIndex].name);
+          console.log('Tiles in supply:', nextEpochGameState.tileSupply.length);
+
+          await saveGameState(nextEpochGameState);
+          toast.success(`Epoch ${gameState.epoch} complete! Starting Epoch ${nextEpoch}. ${sortedPlayers[0].name} goes first!`);
+        }
+      }
+    };
+
+    // Small delay to ensure all moves are processed
+    const timer = setTimeout(checkEpochEnd, 500);
+    return () => clearTimeout(timer);
+  }, [gameState, playerId, saveGameState]);
 
   // Fallback polling mechanism
   useEffect(() => {
