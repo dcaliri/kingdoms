@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { GameState, Castle, Tile } from '@/types/game';
+import { GameState, Castle, Tile, LogEntry } from '@/types/game';
 import { isValidPosition, calculateScore, canPlayerAct, createInitialTiles, shuffleArray, BOARD_ROWS, BOARD_COLS, createInitialCastles } from '@/utils/gameLogic';
 import { updateGameState, getGameState } from '@/utils/supabaseRoomManager';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +21,19 @@ export const useGamePlay = (
   const lastUpdateRef = useRef<number>(Date.now());
   const epochEndProcessedRef = useRef<string>(''); // Track processed epochs to avoid duplicates
   const subscriptionRef = useRef<any>(null);
+
+  // Helper function to create log entries
+  const createLogEntry = useCallback((playerId: string, playerName: string, playerColor: string, action: string, epoch: number): LogEntry => {
+    return {
+      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      playerId,
+      playerName,
+      playerColor,
+      action,
+      timestamp: Date.now(),
+      epoch
+    };
+  }, []);
 
   // Define saveGameState first to avoid circular dependency
   const saveGameState = useCallback(async (newGameState: GameState) => {
@@ -307,6 +320,15 @@ export const useGamePlay = (
 
         console.log('Updated player gold:', updatedPlayers.map(p => ({ name: p.name, gold: p.gold })));
 
+        // Add epoch end log entry
+        const epochEndLogEntry = createLogEntry(
+          'system',
+          'System',
+          'gray',
+          `🏁 Epoch ${gameState.epoch} completed! Scores calculated and gold awarded.`,
+          gameState.epoch
+        );
+
         // Update the game state with new gold AND store the epoch scores
         const updatedGameState = {
           ...gameState,
@@ -314,7 +336,8 @@ export const useGamePlay = (
           scores: { 
             ...gameState.scores, 
             [`epoch${gameState.epoch}`]: completeScores 
-          }
+          },
+          gameLog: [...(gameState.gameLog || []), epochEndLogEntry]
         };
 
         console.log('=== SAVING GAME STATE WITH EPOCH SCORES ===');
@@ -332,7 +355,7 @@ export const useGamePlay = (
     checkEpochEnd();
     const timer = setTimeout(checkEpochEnd, 100);
     return () => clearTimeout(timer);
-  }, [gameState, playerId, saveGameState]);
+  }, [gameState, playerId, saveGameState, createLogEntry]);
 
   // Function to continue to next epoch (called from score screen)
   const continueToNextEpoch = useCallback(async () => {
@@ -352,10 +375,20 @@ export const useGamePlay = (
 
       console.log('Winner:', winner.name, 'with', winner.gold, 'gold');
 
+      // Add game end log entry
+      const gameEndLogEntry = createLogEntry(
+        'system',
+        'System',
+        'gray',
+        `🎉 Game finished! ${winner.name} wins with ${winner.gold} gold!`,
+        gameState.epoch
+      );
+
       const finalGameState = {
         ...gameState,
         gamePhase: 'finished' as const,
-        winner
+        winner,
+        gameLog: [...(gameState.gameLog || []), gameEndLogEntry]
       };
 
       console.log('=== SAVING FINAL GAME STATE ===');
@@ -414,13 +447,23 @@ export const useGamePlay = (
       const newFirstPlayerIndex = resetPlayers.findIndex(p => p.id === sortedPlayers[0].id);
       console.log('First player for next epoch:', sortedPlayers[0].name);
 
+      // Add epoch start log entry
+      const epochStartLogEntry = createLogEntry(
+        'system',
+        'System',
+        'gray',
+        `🚀 Epoch ${nextEpoch} begins! ${sortedPlayers[0].name} goes first (richest player).`,
+        nextEpoch
+      );
+
       const nextEpochGameState = {
         ...gameState,
         players: resetPlayers,
         epoch: nextEpoch,
         board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
         tileSupply: shuffledTiles,
-        currentPlayerIndex: newFirstPlayerIndex
+        currentPlayerIndex: newFirstPlayerIndex,
+        gameLog: [...(gameState.gameLog || []), epochStartLogEntry]
       };
 
       console.log('=== NEXT EPOCH GAME STATE ===');
@@ -436,7 +479,7 @@ export const useGamePlay = (
       
       toast.success(`Starting Epoch ${nextEpoch}! ${sortedPlayers[0].name} goes first!`);
     }
-  }, [gameState, saveGameState]);
+  }, [gameState, saveGameState, createLogEntry]);
 
   const placeCastle = useCallback(async (castle: Castle, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
@@ -473,11 +516,21 @@ export const useGamePlay = (
 
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
 
+    // Create log entry for castle placement
+    const logEntry = createLogEntry(
+      currentPlayer.id,
+      currentPlayer.name,
+      currentPlayer.color,
+      `placed a ${castle.rank} tower castle at (${row + 1}, ${col + 1})`,
+      gameState.epoch
+    );
+
     const newGameState = {
       ...gameState,
       board: newBoard,
       players: updatedPlayers,
-      currentPlayerIndex: nextPlayerIndex
+      currentPlayerIndex: nextPlayerIndex,
+      gameLog: [...(gameState.gameLog || []), logEntry]
     };
 
     console.log('=== NEW GAME STATE AFTER CASTLE PLACEMENT ===');
@@ -487,7 +540,7 @@ export const useGamePlay = (
     await saveGameState(newGameState);
     setSelectedCastle(undefined);
     toast.success('Castle placed!');
-  }, [gameState, playerId, saveGameState]);
+  }, [gameState, playerId, saveGameState, createLogEntry]);
 
   const drawAndPlaceTile = useCallback(async () => {
     if (!gameState || gameState.tileSupply.length === 0) {
@@ -554,10 +607,24 @@ export const useGamePlay = (
 
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
 
+    // Create log entry for tile placement
+    const tileDescription = tile.value !== 0 ? 
+      `${tile.value > 0 ? '+' : ''}${tile.value} ${tile.name}` : 
+      tile.name;
+    
+    const logEntry = createLogEntry(
+      currentPlayer.id,
+      currentPlayer.name,
+      currentPlayer.color,
+      `placed a ${tileDescription} tile at (${row + 1}, ${col + 1})`,
+      gameState.epoch
+    );
+
     const newGameState = {
       ...gameState,
       board: newBoard,
-      currentPlayerIndex: nextPlayerIndex
+      currentPlayerIndex: nextPlayerIndex,
+      gameLog: [...(gameState.gameLog || []), logEntry]
     };
 
     console.log('=== NEW GAME STATE AFTER TILE PLACEMENT ===');
@@ -568,7 +635,7 @@ export const useGamePlay = (
     setSelectedTile(undefined);
     setHasSelectedStartingTile(false);
     toast.success('Tile placed!');
-  }, [gameState, playerId, saveGameState]);
+  }, [gameState, playerId, saveGameState, createLogEntry]);
 
   const placeStartingTile = useCallback(async (row: number, col: number) => {
     if (!gameState) return;
@@ -606,12 +673,26 @@ export const useGamePlay = (
 
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
 
+    // Create log entry for starting tile placement
+    const tileDescription = currentPlayer.startingTile.value !== 0 ? 
+      `${currentPlayer.startingTile.value > 0 ? '+' : ''}${currentPlayer.startingTile.value} ${currentPlayer.startingTile.name}` : 
+      currentPlayer.startingTile.name;
+    
+    const logEntry = createLogEntry(
+      currentPlayer.id,
+      currentPlayer.name,
+      currentPlayer.color,
+      `placed starting tile ${tileDescription} at (${row + 1}, ${col + 1})`,
+      gameState.epoch
+    );
+
     // Create complete new game state in one operation
     const newGameState = {
       ...gameState,
       board: newBoard,
       players: updatedPlayers,
-      currentPlayerIndex: nextPlayerIndex
+      currentPlayerIndex: nextPlayerIndex,
+      gameLog: [...(gameState.gameLog || []), logEntry]
     };
 
     console.log('=== NEW GAME STATE AFTER STARTING TILE PLACEMENT ===');
@@ -623,7 +704,7 @@ export const useGamePlay = (
     await saveGameState(newGameState);
     setHasSelectedStartingTile(false);
     toast.success('Starting tile placed!');
-  }, [gameState, playerId, saveGameState]);
+  }, [gameState, playerId, saveGameState, createLogEntry]);
 
   const handleCellClick = useCallback((row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) return;
@@ -684,9 +765,19 @@ export const useGamePlay = (
 
     const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
 
+    // Create log entry for passing turn
+    const logEntry = createLogEntry(
+      currentPlayer.id,
+      currentPlayer.name,
+      currentPlayer.color,
+      'passed their turn',
+      gameState.epoch
+    );
+
     const newGameState = {
       ...gameState,
-      currentPlayerIndex: nextPlayerIndex
+      currentPlayerIndex: nextPlayerIndex,
+      gameLog: [...(gameState.gameLog || []), logEntry]
     };
 
     console.log('=== TURN PASSED ===');
@@ -697,7 +788,7 @@ export const useGamePlay = (
     setSelectedTile(undefined);
     setHasSelectedStartingTile(false);
     toast.info('Turn passed');
-  }, [gameState, playerId, saveGameState]);
+  }, [gameState, playerId, saveGameState, createLogEntry]);
 
   const abandonGame = useCallback(async () => {
     if (!gameState) return;
@@ -705,6 +796,27 @@ export const useGamePlay = (
     console.log('=== ABANDONING GAME ===');
     console.log('Player abandoning:', playerId);
     console.log('Current players:', gameState.players.map(p => p.name));
+
+    const abandoningPlayer = gameState.players.find(p => p.id === playerId);
+    
+    // Create log entry for abandoning
+    if (abandoningPlayer) {
+      const logEntry = createLogEntry(
+        abandoningPlayer.id,
+        abandoningPlayer.name,
+        abandoningPlayer.color,
+        'abandoned the game',
+        gameState.epoch
+      );
+      
+      // Add the log entry before removing the player
+      const updatedGameState = {
+        ...gameState,
+        gameLog: [...(gameState.gameLog || []), logEntry]
+      };
+      
+      await saveGameState(updatedGameState);
+    }
 
     // Remove the abandoning player
     const remainingPlayers = gameState.players.filter(p => p.id !== playerId);
@@ -760,13 +872,15 @@ export const useGamePlay = (
 
     await saveGameState(newGameState);
     toast.info('You have abandoned the game');
-  }, [gameState, playerId, saveGameState]);
+  }, [gameState, playerId, saveGameState, createLogEntry]);
 
   const endGame = useCallback(async () => {
     if (!gameState) return;
 
     console.log('=== ENDING GAME ===');
     console.log('Host ending game:', playerId);
+
+    const hostPlayer = gameState.players.find(p => p.id === playerId);
 
     // Calculate final scores
     const scores = calculateScore(gameState);
@@ -782,11 +896,21 @@ export const useGamePlay = (
       current.gold > prev.gold ? current : prev
     );
 
+    // Create log entry for game end
+    const logEntry = createLogEntry(
+      hostPlayer?.id || 'system',
+      hostPlayer?.name || 'Host',
+      hostPlayer?.color || 'gray',
+      `ended the game. ${winner.name} wins with ${winner.gold} gold!`,
+      gameState.epoch
+    );
+
     const finalGameState = {
       ...gameState,
       players: finalPlayers,
       gamePhase: 'finished' as const,
-      winner
+      winner,
+      gameLog: [...(gameState.gameLog || []), logEntry]
     };
 
     console.log('=== SAVING FINAL GAME STATE (END GAME) ===');
@@ -794,7 +918,7 @@ export const useGamePlay = (
 
     await saveGameState(finalGameState);
     toast.success(`Game ended! ${winner.name} wins with ${winner.gold} gold!`);
-  }, [gameState, playerId, saveGameState]);
+  }, [gameState, playerId, saveGameState, createLogEntry]);
 
   // Enhanced castle selection with undo functionality
   const handleCastleSelect = useCallback((castle: Castle) => {

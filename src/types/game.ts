@@ -24,6 +24,16 @@ export interface Player {
   startingTile?: Tile;
 }
 
+export interface LogEntry {
+  id: string;
+  playerId: string;
+  playerName: string;
+  playerColor: PlayerColor;
+  action: string;
+  timestamp: number;
+  epoch: number;
+}
+
 export interface GameState {
   id: string;
   players: Player[];
@@ -34,6 +44,7 @@ export interface GameState {
   gamePhase: 'setup' | 'playing' | 'scoring' | 'finished';
   winner?: Player;
   scores: { [playerId: string]: number[] }; // scores per epoch
+  gameLog: LogEntry[]; // Add game log to track all actions
 }
 
 export interface GameAction {

@@ -7,6 +7,7 @@ import GameBoard from '@/components/GameBoard';
 import PlayerPanel from '@/components/PlayerPanel';
 import GameActions from '@/components/GameActions';
 import ScoreDisplay from '@/components/ScoreDisplay';
+import GameLog from '@/components/GameLog';
 import EpochScoreScreen from '@/components/EpochScoreScreen';
 import { useGamePlay } from '@/hooks/useGamePlay';
 import { supabase } from '@/integrations/supabase/client';
@@ -390,7 +391,7 @@ const Index = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-6 gap-3">
           {/* Left Column - Players */}
           <div className="lg:col-span-1 space-y-2">
             {gameState.players.map(player => (
@@ -408,8 +409,13 @@ const Index = () => {
             ))}
           </div>
 
+          {/* Game Log Column */}
+          <div className="lg:col-span-1">
+            <GameLog gameState={gameState} />
+          </div>
+
           {/* Center Column - Game Board */}
-          <div className="lg:col-span-2 flex justify-center">
+          <div className="lg:col-span-3 flex justify-center">
             <div className="w-full max-w-2xl">
               <GameBoard
                 gameState={gameState}

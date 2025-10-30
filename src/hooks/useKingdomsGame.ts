@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { GameState, Player, Castle, Tile, PlayerColor } from '@/types/game';
+import { GameState, Player, Castle, Tile, PlayerColor, LogEntry } from '@/types/game';
 import { Room } from '@/types/room';
 import { 
   createInitialTiles, 
@@ -68,6 +68,17 @@ export const useKingdomsGame = () => {
       }
     });
 
+    // Create initial log entry
+    const initialLogEntry: LogEntry = {
+      id: `log-${Date.now()}-init`,
+      playerId: 'system',
+      playerName: 'System',
+      playerColor: 'gray',
+      action: `🎮 Game started with ${players.length} players! Epoch 1 begins.`,
+      timestamp: Date.now(),
+      epoch: 1
+    };
+
     const gameState: GameState = {
       id: `game-${Date.now()}`,
       players,
@@ -76,7 +87,8 @@ export const useKingdomsGame = () => {
       board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
       tileSupply: tiles,
       gamePhase: 'playing',
-      scores: {}
+      scores: {},
+      gameLog: [initialLogEntry] // Initialize with game start log entry
     };
 
     console.log('Game state created:', gameState);
