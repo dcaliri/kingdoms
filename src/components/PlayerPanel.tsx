@@ -105,7 +105,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
           </div>
         </div>
 
-        {/* Starting Tile - Now visible to ALL players */}
+        {/* Starting Tile - Show presence/absence to all, details only to owner */}
         <div>
           <h4 className="text-xs font-semibold mb-1">
             Starting Tile
@@ -115,34 +115,43 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
           </h4>
           {player.startingTile ? (
             <div className="flex items-center gap-2">
-              <div className="w-12 h-12">
-                <TilePreview tile={player.startingTile} className="w-12 h-12 text-xs" />
-              </div>
               {isOwnPlayer ? (
-                <Button
-                  variant={hasSelectedStartingTile ? "default" : "outline"}
-                  size="sm"
-                  onClick={onStartingTileSelect}
-                  disabled={!canInteract}
-                  className={cn(
-                    "text-xs h-6 transition-all",
-                    hasSelectedStartingTile && "ring-2 ring-blue-400",
-                    isDisabledDueToTile && "cursor-not-allowed opacity-50"
-                  )}
-                  title={isDisabledDueToTile ? "Place the drawn tile first" : "Select starting tile"}
-                >
-                  Place
-                </Button>
+                // Show actual tile to owner
+                <>
+                  <div className="w-12 h-12">
+                    <TilePreview tile={player.startingTile} className="w-12 h-12 text-xs" />
+                  </div>
+                  <Button
+                    variant={hasSelectedStartingTile ? "default" : "outline"}
+                    size="sm"
+                    onClick={onStartingTileSelect}
+                    disabled={!canInteract}
+                    className={cn(
+                      "text-xs h-6 transition-all",
+                      hasSelectedStartingTile && "ring-2 ring-blue-400",
+                      isDisabledDueToTile && "cursor-not-allowed opacity-50"
+                    )}
+                    title={isDisabledDueToTile ? "Place the drawn tile first" : "Select starting tile"}
+                  >
+                    Place
+                  </Button>
+                </>
               ) : (
-                <div className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                  Available
-                </div>
+                // Show hidden tile to other players
+                <>
+                  <div className="w-12 h-12 bg-blue-100 border-2 border-blue-300 rounded flex items-center justify-center">
+                    <span className="text-xs text-blue-700 font-bold">?</span>
+                  </div>
+                  <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded font-medium">
+                    Has Tile
+                  </div>
+                </>
               )}
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <div className="w-12 h-12 bg-gray-200 border-2 border-dashed border-gray-300 rounded flex items-center justify-center">
-                <span className="text-xs text-gray-500">None</span>
+                <span className="text-xs text-gray-500">✓</span>
               </div>
               <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
                 {isOwnPlayer ? "Already played" : "Played"}
