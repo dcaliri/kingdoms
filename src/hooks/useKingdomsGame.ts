@@ -329,7 +329,10 @@ export const useKingdomsGame = () => {
     };
 
     await updateGameState(newGameState);
-    toast.success(`Drew ${drawnTile.name} - click an empty space to place it`);
+    const tileDescription = drawnTile.value !== 0 ? 
+      `tile (value ${drawnTile.value > 0 ? '+' : ''}${drawnTile.value})` : 
+      `${drawnTile.type} tile`;
+    toast.success(`Drew ${tileDescription} - click an empty space to place it`);
   }, [gameState, currentPlayerId, updateGameState]);
 
   const placeTile = useCallback(async (tile: Tile, row: number, col: number) => {

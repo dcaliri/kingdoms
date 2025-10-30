@@ -213,19 +213,25 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
             ) : (
               // Tile
               <div className={cn(
-                "w-full h-full flex flex-col items-center justify-center rounded text-center text-xs",
-                cell.type === 'resource' && "bg-green-200 text-green-800",
-                cell.type === 'hazard' && "bg-red-200 text-red-800",
-                cell.type === 'mountain' && "bg-gray-400 text-white",
-                cell.type === 'dragon' && "bg-purple-500 text-white",
-                cell.type === 'goldmine' && "bg-yellow-400 text-yellow-900",
-                cell.type === 'wizard' && "bg-indigo-400 text-white"
+                "w-full h-full flex flex-col items-center justify-center rounded text-center text-xs relative overflow-hidden",
+                cell.type === 'resource' && "bg-green-200",
+                cell.type === 'hazard' && "bg-red-200",
+                cell.type === 'mountain' && "bg-gray-400",
+                cell.type === 'dragon' && "bg-purple-500",
+                cell.type === 'goldmine' && "bg-yellow-400",
+                cell.type === 'wizard' && "bg-indigo-400"
               )}>
-                <div className="text-xs leading-tight mb-1">
-                  {cell.name}
-                </div>
+                <img 
+                  src={cell.imagePath} 
+                  alt={`Tile value ${cell.value}`}
+                  className="w-full h-full object-cover"
+                />
                 {cell.value !== 0 && (
-                  <div className="text-xs font-bold">
+                  <div className={cn(
+                    "absolute bottom-0 left-0 right-0 text-xs font-bold py-0.5",
+                    cell.type === 'resource' && "bg-green-800/80 text-white",
+                    cell.type === 'hazard' && "bg-red-800/80 text-white"
+                  )}>
                     {cell.value > 0 ? '+' : ''}{cell.value}
                   </div>
                 )}

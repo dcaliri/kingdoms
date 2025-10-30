@@ -581,7 +581,10 @@ export const useGamePlay = (
     console.log('Tiles remaining after draw:', newGameState.tileSupply.length);
 
     await saveGameState(newGameState);
-    toast.success(`Drew ${drawnTile.name} - click an empty space to place it`);
+    const tileDescription = drawnTile.value !== 0 ? 
+      `tile (value ${drawnTile.value > 0 ? '+' : ''}${drawnTile.value})` : 
+      `${drawnTile.type} tile`;
+    toast.success(`Drew ${tileDescription} - click an empty space to place it`);
   }, [gameState, playerId, saveGameState, selectedTile]);
 
   const placeTile = useCallback(async (tile: Tile, row: number, col: number) => {
@@ -609,8 +612,8 @@ export const useGamePlay = (
 
     // Create log entry for tile placement
     const tileDescription = tile.value !== 0 ? 
-      `${tile.value > 0 ? '+' : ''}${tile.value} ${tile.name}` : 
-      tile.name;
+      `${tile.value > 0 ? '+' : ''}${tile.value} tile` : 
+      `${tile.type} tile`;
     
     const logEntry = createLogEntry(
       currentPlayer.id,
@@ -675,8 +678,8 @@ export const useGamePlay = (
 
     // Create log entry for starting tile placement
     const tileDescription = currentPlayer.startingTile.value !== 0 ? 
-      `${currentPlayer.startingTile.value > 0 ? '+' : ''}${currentPlayer.startingTile.value} ${currentPlayer.startingTile.name}` : 
-      currentPlayer.startingTile.name;
+      `${currentPlayer.startingTile.value > 0 ? '+' : ''}${currentPlayer.startingTile.value} tile` : 
+      `${currentPlayer.startingTile.type} tile`;
     
     const logEntry = createLogEntry(
       currentPlayer.id,

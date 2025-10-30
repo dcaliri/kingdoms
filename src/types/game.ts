@@ -11,7 +11,8 @@ export interface Tile {
   id: string;
   type: 'resource' | 'hazard' | 'mountain' | 'dragon' | 'goldmine' | 'wizard';
   value: number;
-  name: string;
+  imagePath: string;
+  name?: string; // Optional, kept for backward compatibility
   position?: { row: number; col: number };
 }
 

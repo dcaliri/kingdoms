@@ -7,56 +7,54 @@ export const createInitialTiles = (): Tile[] => {
   const tiles: Tile[] = [];
   
   // Resource tiles (12 tiles)
-  const resourceTiles = [
-    { name: 'Farm', value: 2 },
-    { name: 'Village', value: 1 },
-    { name: 'Town', value: 3 },
-    { name: 'City', value: 4 },
-    { name: 'Windmill', value: 4 },
-    { name: 'Knight', value: 5 },
-    { name: 'Castle Keep', value: 6 },
-    { name: 'Monastery', value: 2 },
-    { name: 'Market', value: 3 },
-    { name: 'Port', value: 5 },
-    { name: 'Cathedral', value: 6 },
-    { name: 'Palace', value: 6 }
-  ];
-  
-  resourceTiles.forEach((tile, index) => {
-    tiles.push({
-      id: `resource-${index}`,
-      type: 'resource',
-      value: tile.value,
-      name: tile.name
-    });
-  });
+  // 2 tiles with value 1
+  tiles.push(
+    { id: 'resource-1-1', type: 'resource', value: 1, imagePath: '/tiles/1.png' },
+    { id: 'resource-1-2', type: 'resource', value: 1, imagePath: '/tiles/1-2.png' }
+  );
+  // 2 tiles with value 2
+  tiles.push(
+    { id: 'resource-2-1', type: 'resource', value: 2, imagePath: '/tiles/2.png' },
+    { id: 'resource-2-2', type: 'resource', value: 2, imagePath: '/tiles/2-2.png' }
+  );
+  // 2 tiles with value 3
+  tiles.push(
+    { id: 'resource-3-1', type: 'resource', value: 3, imagePath: '/tiles/3.png' },
+    { id: 'resource-3-2', type: 'resource', value: 3, imagePath: '/tiles/3-2.png' }
+  );
+  // 2 tiles with value 4
+  tiles.push(
+    { id: 'resource-4-1', type: 'resource', value: 4, imagePath: '/tiles/4.png' },
+    { id: 'resource-4-2', type: 'resource', value: 4, imagePath: '/tiles/4-2.png' }
+  );
+  // 2 tiles with value 5
+  tiles.push(
+    { id: 'resource-5-1', type: 'resource', value: 5, imagePath: '/tiles/5.png' },
+    { id: 'resource-5-2', type: 'resource', value: 5, imagePath: '/tiles/5-2.png' }
+  );
+  // 2 tiles with value 6
+  tiles.push(
+    { id: 'resource-6-1', type: 'resource', value: 6, imagePath: '/tiles/6.png' },
+    { id: 'resource-6-2', type: 'resource', value: 6, imagePath: '/tiles/6-2.png' }
+  );
   
   // Hazard tiles (6 tiles)
-  const hazardTiles = [
-    { name: 'Bandits', value: -1 },
-    { name: 'Dire Wolves', value: -3 },
-    { name: 'Troll', value: -6 },
-    { name: 'Raiders', value: -5 },
-    { name: 'Swamp', value: -2 },
-    { name: 'Cursed Forest', value: -4 }
-  ];
-  
-  hazardTiles.forEach((tile, index) => {
-    tiles.push({
-      id: `hazard-${index}`,
-      type: 'hazard',
-      value: tile.value,
-      name: tile.name
-    });
-  });
+  tiles.push(
+    { id: 'hazard--1', type: 'hazard', value: -1, imagePath: '/tiles/h1.png' },
+    { id: 'hazard--2', type: 'hazard', value: -2, imagePath: '/tiles/h2.png' },
+    { id: 'hazard--3', type: 'hazard', value: -3, imagePath: '/tiles/h3.png' },
+    { id: 'hazard--4', type: 'hazard', value: -4, imagePath: '/tiles/h4.png' },
+    { id: 'hazard--5', type: 'hazard', value: -5, imagePath: '/tiles/h5.png' },
+    { id: 'hazard--6', type: 'hazard', value: -6, imagePath: '/tiles/h6.png' }
+  );
   
   // Special tiles
   tiles.push(
-    { id: 'mountain-1', type: 'mountain', value: 0, name: 'Mountain' },
-    { id: 'mountain-2', type: 'mountain', value: 0, name: 'Mountain' },
-    { id: 'dragon', type: 'dragon', value: 0, name: 'Dragon' },
-    { id: 'goldmine', type: 'goldmine', value: 0, name: 'Gold Mine' },
-    { id: 'wizard', type: 'wizard', value: 0, name: 'Wizard' }
+    { id: 'mountain-1', type: 'mountain', value: 0, imagePath: '/tiles/mountain.png' },
+    { id: 'mountain-2', type: 'mountain', value: 0, imagePath: '/tiles/mountain.png' },
+    { id: 'dragon', type: 'dragon', value: 0, imagePath: '/tiles/dragon.png' },
+    { id: 'goldmine', type: 'goldmine', value: 0, imagePath: '/tiles/goldmine.png' },
+    { id: 'wizard', type: 'wizard', value: 0, imagePath: '/tiles/wizard.png' }
   );
   
   return tiles;
@@ -318,12 +316,12 @@ const calculateSegmentScore = (
       const tile = cell as Tile;
       if (tile.type === 'resource' && !hasDragon) {
         baseValue += tile.value;
-        console.log(`    Added resource tile ${tile.name} (+${tile.value}), base value now: ${baseValue}`);
+        console.log(`    Added resource tile (value +${tile.value}), base value now: ${baseValue}`);
       } else if (tile.type === 'hazard') {
         baseValue += tile.value; // hazard values are negative
-        console.log(`    Added hazard tile ${tile.name} (${tile.value}), base value now: ${baseValue}`);
+        console.log(`    Added hazard tile (value ${tile.value}), base value now: ${baseValue}`);
       } else if (tile.type === 'resource' && hasDragon) {
-        console.log(`    Resource tile ${tile.name} cancelled by dragon`);
+        console.log(`    Resource tile (value +${tile.value}) cancelled by dragon`);
       }
     }
   });
