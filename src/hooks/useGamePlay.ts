@@ -22,13 +22,21 @@ export const useGamePlay = (gameState: GameState | null, playerId: string, roomI
   }, [gameState, playerId]);
 
   const saveGameState = useCallback(async (newGameState: GameState) => {
-    if (!roomId) return;
+    if (!roomId) {
+      console.error('No room ID for saving game state');
+      return;
+    }
     
     try {
+      console.log('=== SAVING GAME STATE ===');
+      console.log('Room ID:', roomId);
+      console.log('New game state:', newGameState);
+      
       await updateGameState(roomId, newGameState);
-      console.log('Game state updated successfully');
+      console.log('=== GAME STATE SAVED SUCCESSFULLY ===');
     } catch (error) {
-      console.error('Failed to save game state:', error);
+      console.error('=== FAILED TO SAVE GAME STATE ===');
+      console.error('Error:', error);
       toast.error('Failed to sync game state');
     }
   }, [roomId]);
@@ -44,6 +52,11 @@ export const useGamePlay = (gameState: GameState | null, playerId: string, roomI
       toast.error('Not your turn or not your castle');
       return;
     }
+
+    console.log('=== PLACING CASTLE ===');
+    console.log('Castle:', castle);
+    console.log('Position:', { row, col });
+    console.log('Current player:', currentPlayer.name);
 
     const newBoard = gameState.board.map(r => [...r]);
     const updatedCastle = { ...castle, position: { row, col } };
@@ -70,6 +83,10 @@ export const useGamePlay = (gameState: GameState | null, playerId: string, roomI
       currentPlayerIndex: nextPlayerIndex
     };
 
+    console.log('=== NEW GAME STATE AFTER CASTLE PLACEMENT ===');
+    console.log('Next player index:', nextPlayerIndex);
+    console.log('Next player:', gameState.players[nextPlayerIndex].name);
+
     await saveGameState(newGameState);
     setSelectedCastle(undefined);
     toast.success('Castle placed!');
@@ -87,6 +104,10 @@ export const useGamePlay = (gameState: GameState | null, playerId: string, roomI
       return;
     }
 
+    console.log('=== DRAWING TILE ===');
+    console.log('Current player:', currentPlayer.name);
+    console.log('Tiles remaining:', gameState.tileSupply.length);
+
     const drawnTile = gameState.tileSupply[0];
     setSelectedTile(drawnTile);
     
@@ -94,6 +115,10 @@ export const useGamePlay = (gameState: GameState | null, playerId: string, roomI
       ...gameState,
       tileSupply: gameState.tileSupply.slice(1)
     };
+
+    console.log('=== TILE DRAWN ===');
+    console.log('Drawn tile:', drawnTile);
+    console.log('Tiles remaining after draw:', newGameState.tileSupply.length);
 
     await saveGameState(newGameState);
     toast.success(`Drew ${drawnTile.name} - click an empty space to place it`);
@@ -111,15 +136,26 @@ export const useGamePlay = (gameState: GameState | null, playerId: string, roomI
       return;
     }
 
+    console.log('=== PLACING TILE ===');
+    console.log('Tile:', tile);
+    console.log('Position:', { row, col });
+    console.log('Current player:', currentPlayer.name);
+
     const newBoard = gameState.board.map(r => [...r]);
     const updatedTile = { ...tile, position: { row, col } };
     newBoard[row][col] = updatedTile;
 
+    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+
     const newGameState = {
       ...gameState,
       board: newBoard,
-      currentPlayerIndex: (gameState.currentPlayerIndex + 1) % gameState.players.length
+      currentPlayerIndex: nextPlayerIndex
     };
+
+    console.log('=== NEW GAME STATE AFTER TILE PLACEMENT ===');
+    console.log('Next player index:', nextPlayerIndex);
+    console.log('Next player:', gameState.players[nextPlayerIndex].name);
 
     await saveGameState(newGameState);
     setSelectedTile(undefined);
@@ -135,6 +171,10 @@ export const useGamePlay = (gameState: GameState | null, playerId: string, roomI
       toast.error('No starting tile available or not your turn');
       return;
     }
+
+    console.log('=== PLACING STARTING TILE ===');
+    console.log('Starting tile:', currentPlayer.startingTile);
+    console.log('Position:', { row, col });
 
     await placeTile(currentPlayer.startingTile, row, col);
     
@@ -157,6 +197,12 @@ export const useGamePlay = (gameState: GameState | null, playerId: string, roomI
       toast.error('Not your turn');
       return;
     }
+
+    console.log('=== CELL CLICKED ===');
+    console.log('Position:', { row, col });
+    console.log('Selected castle:', selectedCastle);
+    console.log('Selected tile:', selectedTile);
+    console.log('Has selected starting tile:', hasSelectedStartingTile);
 
     if (selectedCastle) {
       placeCastle(selectedCastle, row, col);
@@ -191,10 +237,18 @@ export const useGamePlay = (gameState: GameState | null, playerId: string, roomI
       return;
     }
 
+    console.log('=== PASSING TURN ===');
+    console.log('Current player:', currentPlayer.name);
+
+    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+
     const newGameState = {
       ...gameState,
-      currentPlayerIndex: (gameState.currentPlayerIndex + 1) % gameState.players.length
+      currentPlayerIndex: nextPlayerIndex
     };
+
+    console.log('=== TURN PASSED ===');
+    console.log('Next player:', gameState.players[nextPlayerIndex].name);
 
     await saveGameState(newGameState);
     setSelectedCastle(undefined);

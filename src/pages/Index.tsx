@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Room } from '@/types/room';
 import { GameState } from '@/types/game';
 import HomePage from '@/components/HomePage';
@@ -8,6 +8,7 @@ import PlayerPanel from '@/components/PlayerPanel';
 import GameActions from '@/components/GameActions';
 import ScoreDisplay from '@/components/ScoreDisplay';
 import { useGamePlay } from '@/hooks/useGamePlay';
+import { supabase } from '@/integrations/supabase/client';
 
 type AppState = 'home' | 'lobby' | 'playing';
 
@@ -28,6 +29,47 @@ const Index = () => {
     selectStartingTile,
     passTurn
   } = useGamePlay(gameState, playerId, room?.id || '');
+
+  // Set up real-time subscription for game state updates
+  useEffect(() => {
+    if (!room?.id || appState !== 'playing') return;
+
+    console.log('=== SETTING UP GAME STATE SUBSCRIPTION ===');
+    console.log('Room ID:', room.id);
+
+    const channel = supabase
+      .channel(`game-state-${room.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'games',
+          filter: `room_id=eq.${room.id}`
+        },
+        (payload) => {
+          console.log('=== GAME STATE REAL-TIME UPDATE ===');
+          console.log('Event type:', payload.eventType);
+          console.log('Payload:', payload);
+          
+          if (payload.new && payload.new.game_state) {
+            const updatedGameState = payload.new.game_state as GameState;
+            console.log('=== UPDATING GAME STATE ===');
+            console.log('New game state:', updatedGameState);
+            setGameState(updatedGameState);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('=== GAME STATE SUBSCRIPTION STATUS ===');
+        console.log('Status:', status);
+      });
+
+    return () => {
+      console.log('=== CLEANING UP GAME STATE SUBSCRIPTION ===');
+      supabase.removeChannel(channel);
+    };
+  }, [room?.id, appState]);
 
   const handleRoomJoined = (code: string, id: string) => {
     setRoomCode(code);
