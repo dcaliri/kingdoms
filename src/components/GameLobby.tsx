@@ -4,13 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Copy, Users, Crown, Check, X, Wifi, RefreshCw } from 'lucide-react';
 import { Room } from '@/types/room';
-import { getRoom, setPlayerReady, startGame, leaveRoom, subscribeToRoom } from '@/utils/supabaseRoomManager';
+import { getRoom, setPlayerReady, startGame, leaveRoom, subscribeToRoom, getGameState } from '@/utils/supabaseRoomManager';
 import { toast } from 'sonner';
 
 interface GameLobbyProps {
   roomCode: string;
   playerId: string;
-  onGameStart: (room: Room) => void;
+  onGameStart: (room: Room, gameState: any) => void;
   onLeaveRoom: () => void;
 }
 
@@ -34,10 +34,14 @@ const GameLobby: React.FC<GameLobbyProps> = ({
         setRoom(currentRoom);
         setLastUpdate(Date.now());
         
-        // Check if game should start after refresh
+        // Check if game has started
         if (currentRoom.status === 'playing') {
-          console.log('Game is playing after refresh, transitioning...');
-          onGameStart(currentRoom);
+          console.log('Game is playing after refresh, getting game state...');
+          const gameState = await getGameState(currentRoom.id);
+          if (gameState) {
+            console.log('Found game state, transitioning to game...');
+            onGameStart(currentRoom, gameState);
+          }
         }
       }
     } catch (error) {
@@ -61,8 +65,12 @@ const GameLobby: React.FC<GameLobbyProps> = ({
           
           // Check if game is already playing
           if (currentRoom.status === 'playing') {
-            console.log('Game already playing, transitioning immediately...');
-            onGameStart(currentRoom);
+            console.log('Game already playing, getting game state...');
+            const gameState = await getGameState(currentRoom.id);
+            if (gameState) {
+              console.log('Found game state, transitioning immediately...');
+              onGameStart(currentRoom, gameState);
+            }
           }
         }
       } catch (error) {
@@ -74,7 +82,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
     loadRoom();
 
     // Set up real-time subscription
-    const unsubscribe = subscribeToRoom(roomCode, (updatedRoom) => {
+    const unsubscribe = subscribeToRoom(roomCode, async (updatedRoom) => {
       console.log('Received room update via subscription:', updatedRoom);
       if (updatedRoom) {
         setRoom(updatedRoom);
@@ -82,8 +90,12 @@ const GameLobby: React.FC<GameLobbyProps> = ({
         
         // Check if game started
         if (updatedRoom.status === 'playing') {
-          console.log('Game started via subscription, transitioning...');
-          onGameStart(updatedRoom);
+          console.log('Game started via subscription, getting game state...');
+          const gameState = await getGameState(updatedRoom.id);
+          if (gameState) {
+            console.log('Found game state, transitioning to game...');
+            onGameStart(updatedRoom, gameState);
+          }
         }
       }
       setIsConnected(true);
@@ -94,7 +106,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
       setIsConnected(navigator.onLine);
     }, 5000);
 
-    // Auto-refresh every 5 seconds as backup (more frequent for game start)
+    // Auto-refresh every 5 seconds as backup
     const autoRefreshInterval = setInterval(refreshRoom, 5000);
 
     return () => {
@@ -151,14 +163,14 @@ const GameLobby: React.FC<GameLobbyProps> = ({
         toast.success('Game starting!');
         setRoom(updatedRoom);
         
-        // Force transition to game if status is playing
-        if (updatedRoom.status === 'playing') {
+        // Get the game state that was just created
+        const gameState = await getGameState(updatedRoom.id);
+        if (gameState) {
           console.log('Game started successfully, transitioning...');
-          onGameStart(updatedRoom);
+          onGameStart(updatedRoom, gameState);
         } else {
-          console.log('Game not started, room status:', updatedRoom.status);
-          // Force refresh to get latest state
-          setTimeout(refreshRoom, 1000);
+          console.error('Game started but no game state found');
+          toast.error('Game started but failed to load game state');
         }
       } else {
         console.error('Start game returned null');
@@ -203,15 +215,6 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   const isHost = currentPlayer?.isHost || false;
   const canStartGame = room.status === 'ready' && isHost;
   const allPlayersReady = room.players.length >= 2 && room.players.every(p => p.isReady);
-
-  console.log('Render state:', { 
-    currentPlayer, 
-    isHost, 
-    canStartGame, 
-    allPlayersReady, 
-    roomStatus: room.status,
-    players: room.players.map(p => ({ name: p.name, isReady: p.isReady }))
-  });
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -354,11 +357,6 @@ const GameLobby: React.FC<GameLobbyProps> = ({
             >
               {isLoading ? 'Leaving...' : 'Leave Room'}
             </Button>
-
-            {/* Debug info */}
-            <div className="text-xs text-gray-400 p-2 bg-gray-50 rounded">
-              Debug: Host={isHost ? 'Yes' : 'No'}, CanStart={canStartGame ? 'Yes' : 'No'}, Status={room.status}
-            </div>
           </CardContent>
         </Card>
       </div>

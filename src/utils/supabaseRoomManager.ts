@@ -1,5 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Room, RoomPlayer } from '@/types/room';
+import { GameState, Player } from '@/types/game';
+import { createInitialTiles, createInitialCastles, shuffleArray, BOARD_ROWS, BOARD_COLS } from '@/utils/gameLogic';
 import { toast } from 'sonner';
 
 export const generateRoomCode = (): string => {
@@ -238,8 +240,49 @@ export const setPlayerReady = async (playerId: string, roomCode: string, isReady
   }
 };
 
+const createGameStateFromRoom = (room: Room): GameState => {
+  console.log('Creating game state from room:', room);
+  
+  // Create players
+  const players: Player[] = room.players.map((roomPlayer) => ({
+    id: roomPlayer.id,
+    name: roomPlayer.name,
+    color: roomPlayer.color!,
+    gold: 50,
+    castles: createInitialCastles(roomPlayer.color!, room.players.length)
+  }));
+
+  // Create and shuffle tiles
+  const tiles = shuffleArray(createInitialTiles());
+  
+  // Give each player a starting tile
+  players.forEach(player => {
+    if (tiles.length > 0) {
+      player.startingTile = tiles.pop();
+    }
+  });
+
+  const gameState: GameState = {
+    id: `game-${Date.now()}`,
+    players,
+    currentPlayerIndex: 0,
+    epoch: 1,
+    board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
+    tileSupply: tiles,
+    gamePhase: 'playing',
+    scores: {}
+  };
+
+  console.log('Game state created:', gameState);
+  return gameState;
+};
+
 export const startGame = async (hostId: string, roomCode: string): Promise<Room | null> => {
   try {
+    console.log('=== STARTING GAME ===');
+    console.log('Host ID:', hostId);
+    console.log('Room Code:', roomCode);
+    
     const { data: roomData, error: roomError } = await supabase
       .from('rooms')
       .select('*')
@@ -256,7 +299,11 @@ export const startGame = async (hostId: string, roomCode: string): Promise<Room 
       throw new Error('Not all players are ready');
     }
 
-    // Assign colors to players
+    // Get current room with players
+    const room = await getRoom(roomCode);
+    if (!room) throw new Error('Failed to get room data');
+
+    // Assign colors to players if not already assigned
     const { data: playersData, error: playersError } = await supabase
       .from('room_players')
       .select('*')
@@ -268,15 +315,17 @@ export const startGame = async (hostId: string, roomCode: string): Promise<Room 
     const colors: ('red' | 'blue' | 'yellow' | 'green')[] = ['red', 'blue', 'yellow', 'green'];
     
     for (let i = 0; i < playersData.length; i++) {
-      const { error: colorError } = await supabase
-        .from('room_players')
-        .update({ color: colors[i] })
-        .eq('id', playersData[i].id);
+      if (!playersData[i].color) {
+        const { error: colorError } = await supabase
+          .from('room_players')
+          .update({ color: colors[i] })
+          .eq('id', playersData[i].id);
 
-      if (colorError) throw colorError;
+        if (colorError) throw colorError;
+      }
     }
 
-    // Update room status
+    // Update room status to playing
     const { error: statusError } = await supabase
       .from('rooms')
       .update({ status: 'playing' })
@@ -284,7 +333,32 @@ export const startGame = async (hostId: string, roomCode: string): Promise<Room 
 
     if (statusError) throw statusError;
 
-    return await getRoom(roomCode);
+    // Get updated room with colors
+    const updatedRoom = await getRoom(roomCode);
+    if (!updatedRoom) throw new Error('Failed to get updated room');
+
+    // Create and save game state
+    console.log('Creating game state...');
+    const gameState = createGameStateFromRoom(updatedRoom);
+    
+    console.log('Saving game state to database...');
+    const { error: gameError } = await supabase
+      .from('games')
+      .insert({
+        room_id: roomData.id,
+        game_state: gameState,
+        current_player_index: gameState.currentPlayerIndex,
+        epoch: gameState.epoch,
+        phase: gameState.gamePhase
+      });
+
+    if (gameError) {
+      console.error('Error saving game state:', gameError);
+      throw gameError;
+    }
+
+    console.log('Game started successfully!');
+    return updatedRoom;
   } catch (error) {
     console.error('Error starting game:', error);
     throw error;
@@ -390,6 +464,26 @@ export const subscribeToRoom = (roomCode: string, callback: (room: Room | null) 
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'games'
+        },
+        async (payload) => {
+          console.log('Games table change detected:', payload);
+          // Check if this affects our room
+          const changeRoomId = payload.new?.room_id || payload.old?.room_id;
+          if (changeRoomId === roomId || !roomId) {
+            console.log('Game state change affects our room, updating...');
+            const updatedRoom = await getRoom(roomCode);
+            if (updatedRoom) {
+              callback(updatedRoom);
+            }
+          }
+        }
+      )
       .subscribe((status) => {
         console.log('Subscription status:', status);
       });
@@ -408,4 +502,47 @@ export const subscribeToRoom = (roomCode: string, callback: (room: Room | null) 
       supabase.removeChannel(channel);
     }
   };
+};
+
+// Get game state for a room
+export const getGameState = async (roomId: string): Promise<GameState | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('games')
+      .select('*')
+      .eq('room_id', roomId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null; // No game state found
+      }
+      throw error;
+    }
+
+    return data.game_state as GameState;
+  } catch (error) {
+    console.error('Error getting game state:', error);
+    return null;
+  }
+};
+
+// Update game state
+export const updateGameState = async (roomId: string, gameState: GameState): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('games')
+      .update({
+        game_state: gameState,
+        current_player_index: gameState.currentPlayerIndex,
+        epoch: gameState.epoch,
+        phase: gameState.gamePhase
+      })
+      .eq('room_id', roomId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error updating game state:', error);
+    throw error;
+  }
 };

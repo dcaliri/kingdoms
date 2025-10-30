@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
-import { useKingdomsGame } from '@/hooks/useKingdomsGame';
 import { Room } from '@/types/room';
+import { GameState } from '@/types/game';
 import HomePage from '@/components/HomePage';
 import GameLobby from '@/components/GameLobby';
 import GameBoard from '@/components/GameBoard';
 import PlayerPanel from '@/components/PlayerPanel';
 import GameActions from '@/components/GameActions';
 import ScoreDisplay from '@/components/ScoreDisplay';
-import { Button } from '@/components/ui/button';
-import { RefreshCw, Play } from 'lucide-react';
+import { useGamePlay } from '@/hooks/useGamePlay';
 
 type AppState = 'home' | 'lobby' | 'playing';
 
@@ -17,24 +16,18 @@ const Index = () => {
   const [roomCode, setRoomCode] = useState('');
   const [playerId, setPlayerId] = useState('');
   const [room, setRoom] = useState<Room | null>(null);
+  const [gameState, setGameState] = useState<GameState | null>(null);
 
   const {
-    gameState,
-    currentPlayerId,
     selectedCastle,
     selectedTile,
     hasSelectedStartingTile,
-    isInitializing,
-    loadingAttempts,
-    isHost,
-    initializeGameFromRoom,
-    createAndSaveGame,
     setSelectedCastle,
     drawAndPlaceTile,
     handleCellClick,
     selectStartingTile,
     passTurn
-  } = useKingdomsGame();
+  } = useGamePlay(gameState, playerId, room?.id || '');
 
   const handleRoomJoined = (code: string, id: string) => {
     setRoomCode(code);
@@ -42,13 +35,14 @@ const Index = () => {
     setAppState('lobby');
   };
 
-  const handleGameStart = (roomData: Room) => {
+  const handleGameStart = (roomData: Room, initialGameState: GameState) => {
     console.log('=== GAME START TRIGGERED ===');
     console.log('Room data:', roomData);
+    console.log('Game state:', initialGameState);
     console.log('Player ID:', playerId);
     
     setRoom(roomData);
-    initializeGameFromRoom(roomData, playerId);
+    setGameState(initialGameState);
     setAppState('playing');
   };
 
@@ -57,22 +51,7 @@ const Index = () => {
     setRoomCode('');
     setPlayerId('');
     setRoom(null);
-  };
-
-  const handleManualRefresh = () => {
-    if (room) {
-      console.log('=== MANUAL REFRESH TRIGGERED ===');
-      console.log('Room:', room);
-      console.log('Player ID:', playerId);
-      initializeGameFromRoom(room, playerId);
-    }
-  };
-
-  const handleCreateGame = () => {
-    if (room && isHost) {
-      console.log('=== MANUAL GAME CREATION ===');
-      createAndSaveGame(room);
-    }
+    setGameState(null);
   };
 
   if (appState === 'home') {
@@ -90,70 +69,12 @@ const Index = () => {
     );
   }
 
-  if (isInitializing || !gameState) {
-    const isHostPlayer = room?.players.find(p => p.id === playerId)?.isHost;
-    
+  if (!gameState) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-lg">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold mb-2">
-            {isHost && !gameState ? 'Ready to Create Game' : 'Loading Game...'}
-          </h2>
-          <p className="text-gray-600 mb-4">
-            {isHost && !gameState 
-              ? 'As the host, you can create the game when ready.'
-              : isInitializing 
-                ? 'Initializing game state...' 
-                : 'Waiting for game data...'
-            }
-          </p>
-          
-          <div className="text-sm text-gray-500 space-y-1 mb-4 text-left bg-gray-50 p-3 rounded">
-            <div><strong>Room:</strong> {roomCode}</div>
-            <div><strong>Room ID:</strong> {room?.id}</div>
-            <div><strong>Player ID:</strong> {playerId}</div>
-            <div><strong>Is Host:</strong> {isHost ? 'Yes' : 'No'}</div>
-            <div><strong>Status:</strong> {isInitializing ? 'Initializing' : 'Waiting'}</div>
-            <div><strong>Loading Attempts:</strong> {loadingAttempts}</div>
-            <div><strong>Players in Room:</strong> {room?.players.length}</div>
-          </div>
-
-          <div className="space-y-2">
-            {isHost && !gameState && !isInitializing && (
-              <Button 
-                onClick={handleCreateGame}
-                className="w-full"
-                size="lg"
-              >
-                <Play className="h-4 w-4 mr-2" />
-                Create Game Now
-              </Button>
-            )}
-            
-            <Button 
-              onClick={handleManualRefresh}
-              variant="outline"
-              size="sm"
-              className="w-full"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Retry Loading
-            </Button>
-            
-            <Button 
-              onClick={handleLeaveRoom}
-              variant="destructive"
-              size="sm"
-              className="w-full"
-            >
-              Back to Lobby
-            </Button>
-          </div>
-
-          <div className="mt-4 text-xs text-gray-400">
-            Check browser console for detailed logs
-          </div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p>Loading game...</p>
         </div>
       </div>
     );
@@ -192,13 +113,13 @@ const Index = () => {
   }
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  const ownPlayer = gameState.players.find(p => p.id === currentPlayerId);
-  const isMyTurn = currentPlayer?.id === currentPlayerId;
+  const ownPlayer = gameState.players.find(p => p.id === playerId);
+  const isMyTurn = currentPlayer?.id === playerId;
 
   return (
     <div className="min-h-screen bg-gray-100 p-2">
       <div className="max-w-7xl mx-auto">
-        {/* Header - Enhanced with turn status */}
+        {/* Header */}
         <div className="text-center mb-3">
           <h1 className="text-2xl font-bold mb-1">Kingdoms</h1>
           <div className="flex items-center justify-center gap-4 text-sm">
@@ -215,7 +136,7 @@ const Index = () => {
             </span>
           </div>
           
-          {/* Turn Status - More prominent */}
+          {/* Turn Status */}
           <div className={`mt-2 p-3 rounded-lg ${
             isMyTurn 
               ? 'bg-green-100 border border-green-300' 
@@ -241,11 +162,11 @@ const Index = () => {
                 key={player.id}
                 player={player}
                 isCurrentPlayer={player.id === currentPlayer.id}
-                isOwnPlayer={player.id === currentPlayerId}
+                isOwnPlayer={player.id === playerId}
                 onCastleSelect={setSelectedCastle}
                 onStartingTileSelect={selectStartingTile}
                 selectedCastle={selectedCastle}
-                hasSelectedStartingTile={hasSelectedStartingTile && player.id === currentPlayerId}
+                hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
               />
             ))}
           </div>
