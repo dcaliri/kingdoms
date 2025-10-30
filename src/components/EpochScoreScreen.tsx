@@ -226,15 +226,6 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
                   alt={`Tile value ${cell.value}`}
                   className="w-full h-full object-cover"
                 />
-                {cell.value !== 0 && (
-                  <div className={cn(
-                    "absolute bottom-0 left-0 right-0 text-xs font-bold py-0.5",
-                    cell.type === 'resource' && "bg-green-800/80 text-white",
-                    cell.type === 'hazard' && "bg-red-800/80 text-white"
-                  )}>
-                    {cell.value > 0 ? '+' : ''}{cell.value}
-                  </div>
-                )}
               </div>
             )}
           </div>
