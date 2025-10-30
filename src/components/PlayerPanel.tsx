@@ -105,20 +105,20 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
           </div>
         </div>
 
-        {/* Starting Tile - Only show for own player */}
-        {isOwnPlayer && (
-          <div>
-            <h4 className="text-xs font-semibold mb-1">
-              Starting Tile
-              {isDisabledDueToTile && (
-                <span className="text-red-500 ml-2">(Place tile first)</span>
-              )}
-            </h4>
-            {player.startingTile ? (
-              <div className="flex items-center gap-2">
-                <div className="w-12 h-12">
-                  <TilePreview tile={player.startingTile} className="w-12 h-12 text-xs" />
-                </div>
+        {/* Starting Tile - Now visible to ALL players */}
+        <div>
+          <h4 className="text-xs font-semibold mb-1">
+            Starting Tile
+            {isDisabledDueToTile && isOwnPlayer && (
+              <span className="text-red-500 ml-2">(Place tile first)</span>
+            )}
+          </h4>
+          {player.startingTile ? (
+            <div className="flex items-center gap-2">
+              <div className="w-12 h-12">
+                <TilePreview tile={player.startingTile} className="w-12 h-12 text-xs" />
+              </div>
+              {isOwnPlayer ? (
                 <Button
                   variant={hasSelectedStartingTile ? "default" : "outline"}
                   size="sm"
@@ -133,19 +133,30 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
                 >
                   Place
                 </Button>
+              ) : (
+                <div className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                  Available
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="w-12 h-12 bg-gray-200 border-2 border-dashed border-gray-300 rounded flex items-center justify-center">
+                <span className="text-xs text-gray-500">None</span>
               </div>
-            ) : (
-              <span className="text-xs text-gray-500">None</span>
-            )}
-          </div>
-        )}
+              <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                {isOwnPlayer ? "Already played" : "Played"}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Placed Castles Count */}
         <div className="text-xs text-gray-600">
           Placed: {placedCastles.length} castles
         </div>
 
-        {/* Selection Status */}
+        {/* Selection Status - Only show for own player */}
         {isOwnPlayer && isCurrentPlayer && (
           <div className="text-xs">
             {selectedTile && (
