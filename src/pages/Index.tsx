@@ -30,19 +30,20 @@ const Index = () => {
     passTurn
   } = useGamePlay(gameState, playerId, room?.id || '', setGameState);
 
-  // Set up real-time subscription for game state updates ONLY
+  // Set up real-time subscription for game state updates
   useEffect(() => {
     if (!room?.id || appState !== 'playing') return;
 
     console.log('=== SETTING UP GAME STATE SUBSCRIPTION ===');
     console.log('Room ID:', room.id);
+    console.log('Player ID:', playerId);
 
     const channel = supabase
-      .channel(`game-state-${room.id}`)
+      .channel(`game-state-${room.id}-${playerId}`) // Make channel unique per player
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*', // Listen to all events
           schema: 'public',
           table: 'games',
           filter: `room_id=eq.${room.id}`
@@ -50,27 +51,50 @@ const Index = () => {
         (payload) => {
           console.log('=== GAME STATE REAL-TIME UPDATE ===');
           console.log('Event type:', payload.eventType);
-          console.log('New payload:', payload.new);
+          console.log('Player ID:', playerId);
+          console.log('Full payload:', payload);
           
-          if (payload.new && payload.new.game_state) {
+          if (payload.eventType === 'UPDATE' && payload.new && payload.new.game_state) {
             const updatedGameState = payload.new.game_state as GameState;
             console.log('=== UPDATING GAME STATE FROM REAL-TIME ===');
             console.log('Current player index:', updatedGameState.currentPlayerIndex);
             console.log('Current player:', updatedGameState.players[updatedGameState.currentPlayerIndex]?.name);
+            console.log('Board state:', updatedGameState.board);
             setGameState(updatedGameState);
+          } else if (payload.eventType === 'INSERT' && payload.new && payload.new.game_state) {
+            // Handle initial game creation
+            const newGameState = payload.new.game_state as GameState;
+            console.log('=== NEW GAME STATE INSERTED ===');
+            console.log('Game state:', newGameState);
+            setGameState(newGameState);
           }
         }
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
         console.log('=== GAME STATE SUBSCRIPTION STATUS ===');
         console.log('Status:', status);
+        console.log('Player ID:', playerId);
+        if (err) {
+          console.error('Subscription error:', err);
+        }
+        
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to game state changes');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Error subscribing to game state changes');
+        } else if (status === 'TIMED_OUT') {
+          console.error('⏰ Subscription timed out');
+        } else if (status === 'CLOSED') {
+          console.log('🔒 Subscription closed');
+        }
       });
 
     return () => {
       console.log('=== CLEANING UP GAME STATE SUBSCRIPTION ===');
+      console.log('Player ID:', playerId);
       supabase.removeChannel(channel);
     };
-  }, [room?.id, appState]);
+  }, [room?.id, appState, playerId]);
 
   const handleRoomJoined = (code: string, id: string) => {
     setRoomCode(code);

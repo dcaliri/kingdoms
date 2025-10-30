@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { GameState, Castle, Tile } from '@/types/game';
 import { isValidPosition } from '@/utils/gameLogic';
 import { updateGameState, getGameState } from '@/utils/supabaseRoomManager';
@@ -13,6 +13,8 @@ export const useGamePlay = (
   const [selectedCastle, setSelectedCastle] = useState<Castle | undefined>();
   const [selectedTile, setSelectedTile] = useState<Tile | undefined>();
   const [hasSelectedStartingTile, setHasSelectedStartingTile] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastUpdateRef = useRef<number>(Date.now());
 
   // Clear selections when it's not your turn
   useEffect(() => {
@@ -26,6 +28,46 @@ export const useGamePlay = (
     }
   }, [gameState, playerId]);
 
+  // Fallback polling mechanism
+  useEffect(() => {
+    if (!roomId || !gameState) return;
+
+    console.log('=== SETTING UP FALLBACK POLLING ===');
+    console.log('Room ID:', roomId);
+    console.log('Player ID:', playerId);
+
+    // Poll every 2 seconds as a fallback
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const currentGameState = await getGameState(roomId);
+        if (currentGameState) {
+          // Check if the game state has actually changed
+          const currentStateStr = JSON.stringify(gameState);
+          const newStateStr = JSON.stringify(currentGameState);
+          
+          if (currentStateStr !== newStateStr) {
+            console.log('=== POLLING DETECTED CHANGE ===');
+            console.log('Current player index:', currentGameState.currentPlayerIndex);
+            console.log('Current player:', currentGameState.players[currentGameState.currentPlayerIndex]?.name);
+            console.log('Player ID:', playerId);
+            setGameState(currentGameState);
+            lastUpdateRef.current = Date.now();
+          }
+        }
+      } catch (error) {
+        console.error('Polling error:', error);
+      }
+    }, 2000);
+
+    return () => {
+      console.log('=== CLEANING UP POLLING ===');
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [roomId, gameState, playerId, setGameState]);
+
   const saveGameState = useCallback(async (newGameState: GameState) => {
     if (!roomId) {
       console.error('No room ID for saving game state');
@@ -35,12 +77,14 @@ export const useGamePlay = (
     try {
       console.log('=== SAVING GAME STATE ===');
       console.log('Room ID:', roomId);
+      console.log('Player ID:', playerId);
       console.log('New game state:', newGameState);
       console.log('Current player index:', newGameState.currentPlayerIndex);
       console.log('Current player:', newGameState.players[newGameState.currentPlayerIndex]?.name);
       
       // Update local state immediately for responsive UI
       setGameState(newGameState);
+      lastUpdateRef.current = Date.now();
       
       // Then save to database
       await updateGameState(roomId, newGameState);
@@ -50,7 +94,7 @@ export const useGamePlay = (
       console.error('Error:', error);
       toast.error('Failed to sync game state');
     }
-  }, [roomId, setGameState]);
+  }, [roomId, setGameState, playerId]);
 
   const placeCastle = useCallback(async (castle: Castle, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
