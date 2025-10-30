@@ -15,6 +15,7 @@ export const useGamePlay = (
   const [hasSelectedStartingTile, setHasSelectedStartingTile] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateRef = useRef<number>(Date.now());
+  const epochEndProcessedRef = useRef<string>(''); // Track processed epochs to avoid duplicates
 
   // Define saveGameState first to avoid circular dependency
   const saveGameState = useCallback(async (newGameState: GameState) => {
@@ -57,7 +58,7 @@ export const useGamePlay = (
     }
   }, [gameState, playerId]);
 
-  // Check for epoch end after each game state change
+  // Check for epoch end after each game state change - with more aggressive detection
   useEffect(() => {
     if (!gameState || gameState.gamePhase !== 'playing') return;
 
@@ -66,17 +67,37 @@ export const useGamePlay = (
       console.log('Current epoch:', gameState.epoch);
       console.log('Game phase:', gameState.gamePhase);
 
+      // Create unique key for this epoch state to avoid duplicate processing
+      const epochKey = `${gameState.epoch}-${JSON.stringify(gameState.board)}-${gameState.players.map(p => p.castles.filter(c => !c.position).length).join('-')}`;
+      
+      if (epochEndProcessedRef.current === epochKey) {
+        console.log('Epoch end already processed for this state, skipping');
+        return;
+      }
+
       // Check if board is full
       const boardFull = gameState.board.every(row => row.every(cell => cell !== null));
       console.log('Board full:', boardFull);
 
       // Check if no player can act
-      const noPlayerCanAct = gameState.players.every(player => !canPlayerAct(player, gameState));
+      const playersCanAct = gameState.players.map(player => ({
+        name: player.name,
+        canAct: canPlayerAct(player, gameState),
+        hasAvailableCastles: player.castles.some(c => !c.position),
+        hasStartingTile: !!player.startingTile,
+        tilesInSupply: gameState.tileSupply.length
+      }));
+      
+      console.log('Players action status:', playersCanAct);
+      
+      const noPlayerCanAct = playersCanAct.every(p => !p.canAct);
       console.log('No player can act:', noPlayerCanAct);
-      console.log('Players can act:', gameState.players.map(p => ({ name: p.name, canAct: canPlayerAct(p, gameState) })));
 
       if (boardFull || noPlayerCanAct) {
         console.log('=== EPOCH SHOULD END ===');
+        
+        // Mark this epoch as processed
+        epochEndProcessedRef.current = epochKey;
         
         // Only the first player (host) should trigger epoch transition to avoid duplicates
         const isHost = gameState.players[0]?.id === playerId;
@@ -95,6 +116,8 @@ export const useGamePlay = (
         const scoreDetails = gameState.players.map(player => 
           `${player.name}: ${scores[player.id] || 0} points`
         ).join(', ');
+
+        console.log('Score details:', scoreDetails);
 
         // Update players with their earned gold
         const updatedPlayers = gameState.players.map(player => ({
@@ -123,9 +146,9 @@ export const useGamePlay = (
           };
 
           // Show final scores
-          toast.success(`Epoch ${gameState.epoch} scores: ${scoreDetails}`);
+          toast.success(`Epoch ${gameState.epoch} complete! Scores: ${scoreDetails}`, { duration: 5000 });
           setTimeout(() => {
-            toast.success(`Game Over! ${winner.name} wins with ${winner.gold} gold!`);
+            toast.success(`Game Over! ${winner.name} wins with ${winner.gold} gold!`, { duration: 8000 });
           }, 2000);
 
           await saveGameState(finalGameState);
@@ -194,10 +217,13 @@ export const useGamePlay = (
           console.log('Current player:', nextEpochGameState.players[nextEpochGameState.currentPlayerIndex].name);
           console.log('Tiles in supply:', nextEpochGameState.tileSupply.length);
 
-          // Show epoch completion with scores
-          toast.success(`Epoch ${gameState.epoch} complete! Scores: ${scoreDetails}`);
+          // Show epoch completion with scores - longer duration and staggered
+          toast.success(`🏆 Epoch ${gameState.epoch} Complete! 🏆`, { duration: 4000 });
           setTimeout(() => {
-            toast.success(`Starting Epoch ${nextEpoch}. ${sortedPlayers[0].name} goes first!`);
+            toast.success(`📊 Scores: ${scoreDetails}`, { duration: 6000 });
+          }, 1000);
+          setTimeout(() => {
+            toast.success(`🚀 Starting Epoch ${nextEpoch}! ${sortedPlayers[0].name} goes first!`, { duration: 5000 });
           }, 3000);
 
           await saveGameState(nextEpochGameState);
@@ -205,8 +231,9 @@ export const useGamePlay = (
       }
     };
 
-    // Small delay to ensure all moves are processed
-    const timer = setTimeout(checkEpochEnd, 500);
+    // Check immediately, then with a small delay as backup
+    checkEpochEnd();
+    const timer = setTimeout(checkEpochEnd, 100);
     return () => clearTimeout(timer);
   }, [gameState, playerId, saveGameState]);
 

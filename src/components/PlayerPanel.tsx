@@ -27,6 +27,9 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
   const availableCastles = player.castles.filter(castle => !castle.position);
   const placedCastles = player.castles.filter(castle => castle.position);
 
+  // Sort available castles by rank in ascending order (1, 2, 3, 4)
+  const sortedAvailableCastles = [...availableCastles].sort((a, b) => a.rank - b.rank);
+
   return (
     <Card className={cn(
       "transition-all",
@@ -54,9 +57,9 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
       <CardContent className="space-y-3 pt-0">
         {/* Available Castles */}
         <div>
-          <h4 className="text-xs font-semibold mb-1">Castles ({availableCastles.length})</h4>
+          <h4 className="text-xs font-semibold mb-1">Castles ({sortedAvailableCastles.length})</h4>
           <div className="flex flex-wrap gap-1">
-            {availableCastles.map(castle => (
+            {sortedAvailableCastles.map(castle => (
               <Button
                 key={castle.id}
                 variant={selectedCastle?.id === castle.id ? "default" : "outline"}
@@ -68,7 +71,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
                 {castle.rank}
               </Button>
             ))}
-            {availableCastles.length === 0 && (
+            {sortedAvailableCastles.length === 0 && (
               <span className="text-xs text-gray-500">None</span>
             )}
           </div>
