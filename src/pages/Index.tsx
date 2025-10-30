@@ -8,7 +8,7 @@ import PlayerPanel from '@/components/PlayerPanel';
 import GameActions from '@/components/GameActions';
 import ScoreDisplay from '@/components/ScoreDisplay';
 import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Play } from 'lucide-react';
 
 type AppState = 'home' | 'lobby' | 'playing';
 
@@ -26,7 +26,9 @@ const Index = () => {
     hasSelectedStartingTile,
     isInitializing,
     loadingAttempts,
+    isHost,
     initializeGameFromRoom,
+    createAndSaveGame,
     setSelectedCastle,
     drawAndPlaceTile,
     handleCellClick,
@@ -66,6 +68,13 @@ const Index = () => {
     }
   };
 
+  const handleCreateGame = () => {
+    if (room && isHost) {
+      console.log('=== MANUAL GAME CREATION ===');
+      createAndSaveGame(room);
+    }
+  };
+
   if (appState === 'home') {
     return <HomePage onRoomJoined={handleRoomJoined} />;
   }
@@ -82,15 +91,22 @@ const Index = () => {
   }
 
   if (isInitializing || !gameState) {
-    const isHost = room?.players.find(p => p.id === playerId)?.isHost;
+    const isHostPlayer = room?.players.find(p => p.id === playerId)?.isHost;
     
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-lg">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold mb-2">Loading Game...</h2>
+          <h2 className="text-xl font-semibold mb-2">
+            {isHost && !gameState ? 'Ready to Create Game' : 'Loading Game...'}
+          </h2>
           <p className="text-gray-600 mb-4">
-            {isInitializing ? 'Initializing game state...' : 'Waiting for game data...'}
+            {isHost && !gameState 
+              ? 'As the host, you can create the game when ready.'
+              : isInitializing 
+                ? 'Initializing game state...' 
+                : 'Waiting for game data...'
+            }
           </p>
           
           <div className="text-sm text-gray-500 space-y-1 mb-4 text-left bg-gray-50 p-3 rounded">
@@ -104,6 +120,17 @@ const Index = () => {
           </div>
 
           <div className="space-y-2">
+            {isHost && !gameState && !isInitializing && (
+              <Button 
+                onClick={handleCreateGame}
+                className="w-full"
+                size="lg"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Create Game Now
+              </Button>
+            )}
+            
             <Button 
               onClick={handleManualRefresh}
               variant="outline"

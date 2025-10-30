@@ -23,48 +23,71 @@ export const useKingdomsGame = () => {
   const [hasSelectedStartingTile, setHasSelectedStartingTile] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [loadingAttempts, setLoadingAttempts] = useState(0);
+  const [isHost, setIsHost] = useState(false);
   
   // Use refs to prevent infinite loops
-  const initializationRef = useRef<boolean>(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const updateGameState = useCallback(async (newGameState: GameState) => {
-    console.log('=== UPDATING GAME STATE ===');
-    console.log('New game state:', newGameState);
-    console.log('Room ID for save:', roomId);
+  const createGameState = useCallback(async (room: Room): Promise<GameState> => {
+    console.log('=== CREATING GAME STATE ===');
+    console.log('Room:', room);
     
-    // Update local state immediately
-    setGameState(newGameState);
-    setIsInitializing(false);
-    
-    if (roomId) {
-      try {
-        console.log('=== ATTEMPTING TO SAVE TO DATABASE ===');
-        await saveGameState(roomId, newGameState);
-        console.log('=== GAME STATE SAVED SUCCESSFULLY ===');
-      } catch (error) {
-        console.error('=== FAILED TO SAVE GAME STATE ===');
-        console.error('Save error:', error);
-        toast.error('Failed to sync game state');
-      }
-    } else {
-      console.error('=== NO ROOM ID FOR SAVE ===');
-      console.error('Cannot save game state without room ID');
+    // Validate room data
+    if (!room.players || room.players.length === 0) {
+      throw new Error('No players in room');
     }
-  }, [roomId]);
+    
+    const playersWithColors = room.players.filter(p => p.color);
+    if (playersWithColors.length !== room.players.length) {
+      throw new Error('Not all players have colors assigned');
+    }
+    
+    // Create players
+    const players: Player[] = room.players.map((roomPlayer) => {
+      console.log('Creating player:', roomPlayer);
+      return {
+        id: roomPlayer.id,
+        name: roomPlayer.name,
+        color: roomPlayer.color!,
+        gold: 50,
+        castles: createInitialCastles(roomPlayer.color!, room.players.length)
+      };
+    });
+
+    console.log('Players created:', players);
+
+    // Create and shuffle tiles
+    const tiles = shuffleArray(createInitialTiles());
+    console.log('Tiles shuffled, count:', tiles.length);
+    
+    // Give each player a starting tile
+    players.forEach(player => {
+      if (tiles.length > 0) {
+        player.startingTile = tiles.pop();
+        console.log(`Assigned starting tile to ${player.name}:`, player.startingTile);
+      }
+    });
+
+    const gameState: GameState = {
+      id: `game-${Date.now()}`,
+      players,
+      currentPlayerIndex: 0,
+      epoch: 1,
+      board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
+      tileSupply: tiles,
+      gamePhase: 'playing',
+      scores: {}
+    };
+
+    console.log('Game state created:', gameState);
+    return gameState;
+  }, []);
 
   const initializeGameFromRoom = useCallback(async (room: Room, playerId: string) => {
-    // Prevent multiple simultaneous initializations
-    if (initializationRef.current) {
-      console.log('Initialization already in progress, skipping...');
-      return;
-    }
-
     console.log('=== INITIALIZING GAME FROM ROOM ===');
     console.log('Room:', room);
     console.log('Player ID:', playerId);
     
-    initializationRef.current = true;
     setCurrentPlayerId(playerId);
     setRoomId(room.id);
     setIsInitializing(true);
@@ -76,166 +99,119 @@ export const useKingdomsGame = () => {
       pollingIntervalRef.current = null;
     }
 
+    // Check if this player is the host
+    const playerInRoom = room.players.find(p => p.id === playerId);
+    const playerIsHost = playerInRoom?.isHost || false;
+    setIsHost(playerIsHost);
+    
+    console.log('Player role:', { playerInRoom, playerIsHost });
+
+    // First, try to load existing game state
     try {
-      // Check if this player is the host
-      const isHost = room.players.find(p => p.id === playerId)?.isHost;
-      console.log('=== PLAYER ROLE CHECK ===');
-      console.log('Is host:', isHost);
-      console.log('Player in room:', room.players.find(p => p.id === playerId));
-      
-      if (isHost) {
-        console.log('=== HOST CREATING GAME ===');
-        
-        // Validate room data first
-        if (!room.players || room.players.length === 0) {
-          throw new Error('No players in room');
-        }
-        
-        const playersWithColors = room.players.filter(p => p.color);
-        if (playersWithColors.length !== room.players.length) {
-          throw new Error('Not all players have colors assigned');
-        }
-        
-        console.log('=== CREATING INITIAL GAME STATE ===');
-        
-        // Host creates the game state
-        const players: Player[] = room.players.map((roomPlayer) => {
-          console.log('Creating player:', roomPlayer);
-          return {
-            id: roomPlayer.id,
-            name: roomPlayer.name,
-            color: roomPlayer.color!,
-            gold: 50,
-            castles: createInitialCastles(roomPlayer.color!, room.players.length)
-          };
-        });
-
-        console.log('=== PLAYERS CREATED ===');
-        console.log('Players:', players);
-
-        const tiles = shuffleArray(createInitialTiles());
-        console.log('=== TILES SHUFFLED ===');
-        console.log('Tile count:', tiles.length);
-        
-        // Give each player a starting tile
-        players.forEach(player => {
-          if (tiles.length > 0) {
-            player.startingTile = tiles.pop();
-            console.log(`Assigned starting tile to ${player.name}:`, player.startingTile);
-          }
-        });
-
-        const initialGameState: GameState = {
-          id: `game-${Date.now()}`,
-          players,
-          currentPlayerIndex: 0,
-          epoch: 1,
-          board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
-          tileSupply: tiles,
-          gamePhase: 'playing',
-          scores: {}
-        };
-
-        console.log('=== INITIAL GAME STATE CREATED ===');
-        console.log('Initial game state:', initialGameState);
-        console.log('About to call updateGameState...');
-        
-        await updateGameState(initialGameState);
-        
-        console.log('=== HOST INITIALIZATION COMPLETE ===');
-        initializationRef.current = false;
-        toast.success('Game started!');
-        
-        // Debug: List all games after creation
-        await debugListAllGames();
-      } else {
-        console.log('=== NON-HOST WAITING FOR GAME ===');
-        
-        // For non-host players, poll for game state
-        let attempts = 0;
-        const maxAttempts = 30;
-        
-        pollingIntervalRef.current = setInterval(async () => {
-          if (!initializationRef.current) {
-            console.log('Initialization cancelled, stopping polling');
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
-            return;
-          }
-
-          attempts++;
-          setLoadingAttempts(attempts);
-          console.log(`=== POLL ATTEMPT ${attempts}/${maxAttempts} ===`);
-          
-          try {
-            // Debug: List all games to see what's in the database
-            if (attempts === 1) {
-              await debugListAllGames();
-            }
-            
-            const gameState = await loadGameState(room.id);
-            if (gameState) {
-              console.log('=== FOUND GAME STATE VIA POLLING ===');
-              console.log('Game state:', gameState);
-              setGameState(gameState);
-              setIsInitializing(false);
-              initializationRef.current = false;
-              
-              if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
-              }
-              
-              toast.success('Game loaded!');
-              return;
-            }
-          } catch (error) {
-            console.error(`Poll attempt ${attempts} error:`, error);
-          }
-          
-          if (attempts >= maxAttempts) {
-            console.error('=== POLLING TIMEOUT ===');
-            setIsInitializing(false);
-            initializationRef.current = false;
-            
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
-            
-            toast.error('Failed to load game. Please try refreshing.');
-          }
-        }, 1000);
+      console.log('Checking for existing game state...');
+      const existingGameState = await loadGameState(room.id);
+      if (existingGameState) {
+        console.log('Found existing game state:', existingGameState);
+        setGameState(existingGameState);
+        setIsInitializing(false);
+        toast.success('Game loaded!');
+        return;
       }
     } catch (error) {
-      console.error('=== INITIALIZATION ERROR ===');
-      console.error('Error:', error);
-      setIsInitializing(false);
-      initializationRef.current = false;
-      toast.error(`Failed to initialize game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error checking for existing game:', error);
     }
-  }, [updateGameState]);
+
+    if (playerIsHost) {
+      console.log('Host will need to create game manually');
+      setIsInitializing(false);
+    } else {
+      console.log('Non-host waiting for game to be created...');
+      // Start polling for game state
+      let attempts = 0;
+      const maxAttempts = 60; // Increased timeout
+      
+      pollingIntervalRef.current = setInterval(async () => {
+        attempts++;
+        setLoadingAttempts(attempts);
+        console.log(`Poll attempt ${attempts}/${maxAttempts}`);
+        
+        try {
+          const gameState = await loadGameState(room.id);
+          if (gameState) {
+            console.log('Found game state via polling:', gameState);
+            setGameState(gameState);
+            setIsInitializing(false);
+            
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
+            
+            toast.success('Game loaded!');
+            return;
+          }
+        } catch (error) {
+          console.error(`Poll attempt ${attempts} error:`, error);
+        }
+        
+        if (attempts >= maxAttempts) {
+          console.error('Polling timeout');
+          setIsInitializing(false);
+          
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          
+          toast.error('Failed to load game. Host may need to create the game.');
+        }
+      }, 2000); // Poll every 2 seconds
+    }
+  }, []);
+
+  const createAndSaveGame = useCallback(async (room: Room) => {
+    console.log('=== HOST CREATING AND SAVING GAME ===');
+    setIsInitializing(true);
+    
+    try {
+      // Create the game state
+      const newGameState = await createGameState(room);
+      
+      // Save to database
+      console.log('Saving game state to database...');
+      await saveGameState(room.id, newGameState);
+      console.log('Game state saved successfully');
+      
+      // Set local state
+      setGameState(newGameState);
+      setIsInitializing(false);
+      
+      toast.success('Game created and started!');
+      
+      // Debug: List all games
+      await debugListAllGames();
+      
+    } catch (error) {
+      console.error('Failed to create and save game:', error);
+      setIsInitializing(false);
+      toast.error(`Failed to create game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [createGameState]);
 
   // Set up real-time subscription
   useEffect(() => {
     if (!roomId) return;
 
-    console.log('=== SETTING UP REAL-TIME SUBSCRIPTION ===');
-    console.log('Room ID:', roomId);
+    console.log('Setting up real-time subscription for room:', roomId);
     
     const unsubscribe = subscribeToGameState(roomId, (updatedGameState) => {
-      console.log('=== REAL-TIME UPDATE RECEIVED ===');
-      console.log('Updated game state:', updatedGameState);
+      console.log('Real-time update received:', updatedGameState);
       
       if (updatedGameState) {
-        console.log('Processing real-time game state update');
         setGameState(updatedGameState);
         setIsInitializing(false);
         
-        // Stop any ongoing initialization
-        initializationRef.current = false;
+        // Stop polling if active
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
           pollingIntervalRef.current = null;
@@ -252,9 +228,8 @@ export const useKingdomsGame = () => {
     });
 
     return () => {
-      console.log('=== CLEANING UP SUBSCRIPTION ===');
+      console.log('Cleaning up subscription');
       unsubscribe();
-      initializationRef.current = false;
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -262,17 +237,22 @@ export const useKingdomsGame = () => {
     };
   }, [roomId, currentPlayerId]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      console.log('=== COMPONENT UNMOUNTING ===');
-      initializationRef.current = false;
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
+  const updateGameState = useCallback(async (newGameState: GameState) => {
+    console.log('Updating game state:', newGameState);
+    
+    // Update local state immediately
+    setGameState(newGameState);
+    
+    if (roomId) {
+      try {
+        await saveGameState(roomId, newGameState);
+        console.log('Game state updated successfully');
+      } catch (error) {
+        console.error('Failed to save game state:', error);
+        toast.error('Failed to sync game state');
       }
-    };
-  }, []);
+    }
+  }, [roomId]);
 
   const placeCastle = useCallback(async (castle: Castle, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
@@ -285,8 +265,6 @@ export const useKingdomsGame = () => {
       toast.error('Not your turn or not your castle');
       return;
     }
-
-    console.log('Placing castle for player:', currentPlayer.name);
 
     const newBoard = gameState.board.map(r => [...r]);
     const updatedCastle = { ...castle, position: { row, col } };
@@ -529,7 +507,9 @@ export const useKingdomsGame = () => {
     hasSelectedStartingTile,
     isInitializing,
     loadingAttempts,
+    isHost,
     initializeGameFromRoom,
+    createAndSaveGame,
     setSelectedCastle,
     drawAndPlaceTile,
     handleCellClick,
