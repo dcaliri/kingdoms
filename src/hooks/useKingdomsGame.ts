@@ -31,6 +31,7 @@ export const useKingdomsGame = () => {
   const updateGameState = useCallback(async (newGameState: GameState) => {
     console.log('=== UPDATING GAME STATE ===');
     console.log('New game state:', newGameState);
+    console.log('Room ID for save:', roomId);
     
     // Update local state immediately
     setGameState(newGameState);
@@ -38,12 +39,17 @@ export const useKingdomsGame = () => {
     
     if (roomId) {
       try {
+        console.log('=== ATTEMPTING TO SAVE TO DATABASE ===');
         await saveGameState(roomId, newGameState);
-        console.log('Game state saved successfully');
+        console.log('=== GAME STATE SAVED SUCCESSFULLY ===');
       } catch (error) {
-        console.error('Failed to save game state:', error);
+        console.error('=== FAILED TO SAVE GAME STATE ===');
+        console.error('Save error:', error);
         toast.error('Failed to sync game state');
       }
+    } else {
+      console.error('=== NO ROOM ID FOR SAVE ===');
+      console.error('Cannot save game state without room ID');
     }
   }, [roomId]);
 
@@ -73,26 +79,49 @@ export const useKingdomsGame = () => {
     try {
       // Check if this player is the host
       const isHost = room.players.find(p => p.id === playerId)?.isHost;
+      console.log('=== PLAYER ROLE CHECK ===');
       console.log('Is host:', isHost);
+      console.log('Player in room:', room.players.find(p => p.id === playerId));
       
       if (isHost) {
         console.log('=== HOST CREATING GAME ===');
         
+        // Validate room data first
+        if (!room.players || room.players.length === 0) {
+          throw new Error('No players in room');
+        }
+        
+        const playersWithColors = room.players.filter(p => p.color);
+        if (playersWithColors.length !== room.players.length) {
+          throw new Error('Not all players have colors assigned');
+        }
+        
+        console.log('=== CREATING INITIAL GAME STATE ===');
+        
         // Host creates the game state
-        const players: Player[] = room.players.map((roomPlayer) => ({
-          id: roomPlayer.id,
-          name: roomPlayer.name,
-          color: roomPlayer.color!,
-          gold: 50,
-          castles: createInitialCastles(roomPlayer.color!, room.players.length)
-        }));
+        const players: Player[] = room.players.map((roomPlayer) => {
+          console.log('Creating player:', roomPlayer);
+          return {
+            id: roomPlayer.id,
+            name: roomPlayer.name,
+            color: roomPlayer.color!,
+            gold: 50,
+            castles: createInitialCastles(roomPlayer.color!, room.players.length)
+          };
+        });
+
+        console.log('=== PLAYERS CREATED ===');
+        console.log('Players:', players);
 
         const tiles = shuffleArray(createInitialTiles());
+        console.log('=== TILES SHUFFLED ===');
+        console.log('Tile count:', tiles.length);
         
         // Give each player a starting tile
         players.forEach(player => {
           if (tiles.length > 0) {
             player.startingTile = tiles.pop();
+            console.log(`Assigned starting tile to ${player.name}:`, player.startingTile);
           }
         });
 
@@ -107,8 +136,13 @@ export const useKingdomsGame = () => {
           scores: {}
         };
 
-        console.log('HOST: About to save initial game state');
+        console.log('=== INITIAL GAME STATE CREATED ===');
+        console.log('Initial game state:', initialGameState);
+        console.log('About to call updateGameState...');
+        
         await updateGameState(initialGameState);
+        
+        console.log('=== HOST INITIALIZATION COMPLETE ===');
         initializationRef.current = false;
         toast.success('Game started!');
         
@@ -180,7 +214,7 @@ export const useKingdomsGame = () => {
       console.error('Error:', error);
       setIsInitializing(false);
       initializationRef.current = false;
-      toast.error('Failed to initialize game');
+      toast.error(`Failed to initialize game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }, [updateGameState]);
 
