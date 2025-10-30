@@ -28,9 +28,9 @@ const Index = () => {
     handleCellClick,
     selectStartingTile,
     passTurn
-  } = useGamePlay(gameState, playerId, room?.id || '');
+  } = useGamePlay(gameState, playerId, room?.id || '', setGameState);
 
-  // Set up real-time subscription for game state updates
+  // Set up real-time subscription for game state updates ONLY
   useEffect(() => {
     if (!room?.id || appState !== 'playing') return;
 
@@ -42,7 +42,7 @@ const Index = () => {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
           table: 'games',
           filter: `room_id=eq.${room.id}`
@@ -50,12 +50,13 @@ const Index = () => {
         (payload) => {
           console.log('=== GAME STATE REAL-TIME UPDATE ===');
           console.log('Event type:', payload.eventType);
-          console.log('Payload:', payload);
+          console.log('New payload:', payload.new);
           
           if (payload.new && payload.new.game_state) {
             const updatedGameState = payload.new.game_state as GameState;
-            console.log('=== UPDATING GAME STATE ===');
-            console.log('New game state:', updatedGameState);
+            console.log('=== UPDATING GAME STATE FROM REAL-TIME ===');
+            console.log('Current player index:', updatedGameState.currentPlayerIndex);
+            console.log('Current player:', updatedGameState.players[updatedGameState.currentPlayerIndex]?.name);
             setGameState(updatedGameState);
           }
         }
@@ -80,7 +81,7 @@ const Index = () => {
   const handleGameStart = (roomData: Room, initialGameState: GameState) => {
     console.log('=== GAME START TRIGGERED ===');
     console.log('Room data:', roomData);
-    console.log('Game state:', initialGameState);
+    console.log('Initial game state:', initialGameState);
     console.log('Player ID:', playerId);
     
     setRoom(roomData);

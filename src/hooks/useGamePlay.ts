@@ -4,7 +4,12 @@ import { isValidPosition } from '@/utils/gameLogic';
 import { updateGameState, getGameState } from '@/utils/supabaseRoomManager';
 import { toast } from 'sonner';
 
-export const useGamePlay = (gameState: GameState | null, playerId: string, roomId: string) => {
+export const useGamePlay = (
+  gameState: GameState | null, 
+  playerId: string, 
+  roomId: string,
+  setGameState: (gameState: GameState) => void
+) => {
   const [selectedCastle, setSelectedCastle] = useState<Castle | undefined>();
   const [selectedTile, setSelectedTile] = useState<Tile | undefined>();
   const [hasSelectedStartingTile, setHasSelectedStartingTile] = useState(false);
@@ -31,7 +36,13 @@ export const useGamePlay = (gameState: GameState | null, playerId: string, roomI
       console.log('=== SAVING GAME STATE ===');
       console.log('Room ID:', roomId);
       console.log('New game state:', newGameState);
+      console.log('Current player index:', newGameState.currentPlayerIndex);
+      console.log('Current player:', newGameState.players[newGameState.currentPlayerIndex]?.name);
       
+      // Update local state immediately for responsive UI
+      setGameState(newGameState);
+      
+      // Then save to database
       await updateGameState(roomId, newGameState);
       console.log('=== GAME STATE SAVED SUCCESSFULLY ===');
     } catch (error) {
@@ -39,7 +50,7 @@ export const useGamePlay = (gameState: GameState | null, playerId: string, roomI
       console.error('Error:', error);
       toast.error('Failed to sync game state');
     }
-  }, [roomId]);
+  }, [roomId, setGameState]);
 
   const placeCastle = useCallback(async (castle: Castle, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
