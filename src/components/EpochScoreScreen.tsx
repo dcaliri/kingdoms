@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GameState } from '@/types/game';
 import { Trophy, Crown, Medal, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EpochScoreScreenProps {
   gameState: GameState;
   epochScores: { [playerId: string]: number };
   epochNumber: number;
   onContinue: () => void;
+  onGameStateUpdate: (newGameState: GameState) => void;
   isHost: boolean;
+  roomId: string;
 }
 
 const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({ 
@@ -18,8 +21,64 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
   epochScores, 
   epochNumber,
   onContinue,
-  isHost
+  onGameStateUpdate,
+  isHost,
+  roomId
 }) => {
+  // Set up real-time subscription to listen for game state changes
+  useEffect(() => {
+    if (!roomId) return;
+
+    console.log('=== EPOCH SCORE SCREEN: SETTING UP SUBSCRIPTION ===');
+    console.log('Room ID:', roomId);
+    console.log('Is Host:', isHost);
+    console.log('Current Epoch:', epochNumber);
+
+    const channel = supabase
+      .channel(`epoch-score-${roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'games',
+          filter: `room_id=eq.${roomId}`
+        },
+        (payload) => {
+          console.log('=== EPOCH SCORE SCREEN: REAL-TIME UPDATE ===');
+          console.log('Event type:', payload.eventType);
+          console.log('Is Host:', isHost);
+          
+          if (payload.new && payload.new.game_state) {
+            const updatedGameState = payload.new.game_state as GameState;
+            console.log('=== UPDATED GAME STATE RECEIVED ===');
+            console.log('New epoch:', updatedGameState.epoch);
+            console.log('New phase:', updatedGameState.gamePhase);
+            console.log('Current epoch on screen:', epochNumber);
+            
+            // If the game state has changed (new epoch or finished), update the parent
+            if (updatedGameState.epoch !== epochNumber || updatedGameState.gamePhase === 'finished') {
+              console.log('=== EPOCH CHANGED OR GAME FINISHED - UPDATING PARENT ===');
+              console.log('Calling onGameStateUpdate with:', updatedGameState);
+              onGameStateUpdate(updatedGameState);
+            }
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        console.log('=== EPOCH SCORE SCREEN SUBSCRIPTION STATUS ===');
+        console.log('Status:', status);
+        if (err) {
+          console.error('Subscription error:', err);
+        }
+      });
+
+    return () => {
+      console.log('=== CLEANING UP EPOCH SCORE SCREEN SUBSCRIPTION ===');
+      supabase.removeChannel(channel);
+    };
+  }, [roomId, epochNumber, isHost, onGameStateUpdate]);
+
   // Sort players by epoch score (highest first)
   const sortedPlayers = [...gameState.players].sort((a, b) => 
     (epochScores[b.id] || 0) - (epochScores[a.id] || 0)

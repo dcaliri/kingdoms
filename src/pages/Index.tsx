@@ -231,6 +231,28 @@ const Index = () => {
     }
   };
 
+  // Handle game state updates from epoch score screen
+  const handleGameStateUpdateFromEpochScreen = (newGameState: GameState) => {
+    console.log('=== GAME STATE UPDATE FROM EPOCH SCREEN ===');
+    console.log('New game state:', newGameState);
+    console.log('New epoch:', newGameState.epoch);
+    console.log('New phase:', newGameState.gamePhase);
+    
+    setGameState(newGameState);
+    
+    // Update session if needed
+    if (room) {
+      const playerInRoom = room.players.find(p => p.id === playerId);
+      saveGameSession({
+        appState: 'playing',
+        roomCode: room.code,
+        playerId: playerId,
+        roomId: room.id,
+        playerName: playerInRoom?.name || ''
+      });
+    }
+  };
+
   // Show loading screen while restoring session
   if (isRestoring) {
     return (
@@ -278,7 +300,9 @@ const Index = () => {
         epochScores={epochScores}
         epochNumber={completedEpoch}
         onContinue={continueToNextEpoch}
+        onGameStateUpdate={handleGameStateUpdateFromEpochScreen}
         isHost={isHost}
+        roomId={room?.id || ''}
       />
     );
   }
