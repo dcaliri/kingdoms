@@ -44,19 +44,19 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
       isDisabledDueToTile && isOwnPlayer && "opacity-60"
     )}>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between text-sm">
+        <CardTitle className="flex items-center justify-between text-sm lg:text-base">
           <span className="flex items-center gap-2">
             <div className={cn(
-              "w-3 h-3 rounded-full",
+              "w-3 h-3 lg:w-4 lg:h-4 rounded-full",
               player.color === 'red' && "bg-red-500",
               player.color === 'blue' && "bg-blue-500",
               player.color === 'yellow' && "bg-yellow-500",
               player.color === 'green' && "bg-green-500"
             )} />
-            {player.name}
+            <span className="truncate">{player.name}</span>
             {isOwnPlayer && <span className="text-xs text-blue-600">(You)</span>}
           </span>
-          <span className="text-sm font-bold text-yellow-600">
+          <span className="text-sm font-bold text-yellow-600 flex-shrink-0">
             {player.gold}G
           </span>
         </CardTitle>
@@ -68,10 +68,10 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
           <h4 className="text-xs font-semibold mb-2">
             Castles ({sortedAvailableCastles.length})
             {isDisabledDueToTile && isOwnPlayer && (
-              <span className="text-red-500 ml-2">(Place tile first)</span>
+              <span className="text-red-500 ml-2 block lg:inline">(Place tile first)</span>
             )}
           </h4>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1 lg:gap-2">
             {sortedAvailableCastles.map(castle => (
               <Button
                 key={castle.id}
@@ -80,7 +80,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
                 onClick={() => onCastleSelect(castle)}
                 disabled={!canInteract}
                 className={cn(
-                  "h-12 w-12 p-1 transition-all",
+                  "h-10 w-10 lg:h-12 lg:w-12 p-1 transition-all",
                   selectedCastle?.id === castle.id && "ring-2 ring-blue-400 bg-blue-600",
                   isDisabledDueToTile && "cursor-not-allowed opacity-50"
                 )}
@@ -110,7 +110,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
           <h4 className="text-xs font-semibold mb-1">
             Starting Tile
             {isDisabledDueToTile && isOwnPlayer && (
-              <span className="text-red-500 ml-2">(Place tile first)</span>
+              <span className="text-red-500 ml-2 block lg:inline">(Place tile first)</span>
             )}
           </h4>
           {player.startingTile ? (
@@ -118,8 +118,8 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
               {isOwnPlayer ? (
                 // Show actual tile to owner
                 <>
-                  <div className="w-12 h-12">
-                    <TilePreview tile={player.startingTile} className="w-12 h-12 text-xs" />
+                  <div className="w-10 h-10 lg:w-12 lg:h-12 flex-shrink-0">
+                    <TilePreview tile={player.startingTile} className="w-full h-full text-xs" />
                   </div>
                   <Button
                     variant={hasSelectedStartingTile ? "default" : "outline"}
@@ -127,7 +127,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
                     onClick={onStartingTileSelect}
                     disabled={!canInteract}
                     className={cn(
-                      "text-xs h-6 transition-all",
+                      "text-xs h-6 transition-all flex-shrink-0",
                       hasSelectedStartingTile && "ring-2 ring-blue-400",
                       isDisabledDueToTile && "cursor-not-allowed opacity-50"
                     )}
@@ -139,7 +139,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
               ) : (
                 // Show hidden tile to other players
                 <>
-                  <div className="w-12 h-12 bg-blue-100 border-2 border-blue-300 rounded flex items-center justify-center">
+                  <div className="w-10 h-10 lg:w-12 lg:h-12 bg-blue-100 border-2 border-blue-300 rounded flex items-center justify-center flex-shrink-0">
                     <span className="text-xs text-blue-700 font-bold">?</span>
                   </div>
                   <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded font-medium">
@@ -150,7 +150,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <div className="w-12 h-12 bg-gray-200 border-2 border-dashed border-gray-300 rounded flex items-center justify-center">
+              <div className="w-10 h-10 lg:w-12 lg:h-12 bg-gray-200 border-2 border-dashed border-gray-300 rounded flex items-center justify-center flex-shrink-0">
                 <span className="text-xs text-gray-500">✓</span>
               </div>
               <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">

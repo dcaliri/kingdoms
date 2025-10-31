@@ -34,14 +34,14 @@ const GameBoard: React.FC<GameBoardProps> = ({
         onClick={() => onCellClick(row, col)}
       >
         {cell && (
-          <div className="w-full h-full flex flex-col items-center justify-center p-3">
+          <div className="w-full h-full flex flex-col items-center justify-center p-1 lg:p-3">
             {'rank' in cell ? (
               // Castle - use the new CastleIcon component
               <CastleIcon 
                 rank={cell.rank} 
                 color={cell.color} 
                 size="lg"
-                className="drop-shadow-md"
+                className="drop-shadow-md w-full h-full"
               />
             ) : (
               // Tile
@@ -68,22 +68,22 @@ const GameBoard: React.FC<GameBoardProps> = ({
   };
 
   return (
-    <div className="bg-white p-8 rounded-xl shadow-xl border-2 border-gray-200">
-      <div className="grid grid-cols-6 gap-3 w-full">
+    <div className="bg-white p-4 lg:p-8 rounded-xl shadow-xl border-2 border-gray-200 w-full">
+      <div className="grid grid-cols-6 gap-1 lg:gap-3 w-full max-w-2xl mx-auto">
         {Array.from({ length: BOARD_ROWS }, (_, row) =>
           Array.from({ length: BOARD_COLS }, (_, col) => renderCell(row, col))
         )}
       </div>
       
-      <div className="mt-6 text-center">
-        <div className="text-xl text-gray-700 font-semibold">
+      <div className="mt-4 lg:mt-6 text-center">
+        <div className="text-lg lg:text-xl text-gray-700 font-semibold">
           Epoch {gameState.epoch} of 3
         </div>
-        <div className="text-base text-gray-600 mt-2">
+        <div className="text-sm lg:text-base text-gray-600 mt-2">
           Current Player: <span className="font-semibold text-blue-600">{gameState.players[gameState.currentPlayerIndex].name}</span>
         </div>
         {(selectedCastle || selectedTile) && (
-          <div className="text-base text-blue-600 mt-3 font-medium bg-blue-50 p-3 rounded-lg border border-blue-200">
+          <div className="text-sm lg:text-base text-blue-600 mt-3 font-medium bg-blue-50 p-2 lg:p-3 rounded-lg border border-blue-200">
             Click an empty space to place your {selectedCastle ? 'castle' : 'tile'}
           </div>
         )}

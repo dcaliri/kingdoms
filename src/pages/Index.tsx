@@ -311,7 +311,7 @@ const Index = () => {
   if (gameState.gamePhase === 'finished') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <div className="text-center bg-white p-8 rounded-lg shadow-lg">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
           <h1 className="text-3xl font-bold mb-4">Game Over!</h1>
           {gameState.winner ? (
             <h2 className="text-2xl text-yellow-600 mb-6">
@@ -355,44 +355,99 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <div className="w-full px-2 py-2">
+      <div className="w-full px-2 py-2 lg:px-4 lg:py-4">
         {/* Header */}
         <div className="text-center mb-3">
-          <h1 className="text-2xl font-bold mb-1">Kingdoms</h1>
-          <div className="flex items-center justify-center gap-4 text-sm">
+          <h1 className="text-xl lg:text-2xl font-bold mb-1">Kingdoms</h1>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-xs sm:text-sm">
             <span className="text-gray-600">
               Epoch {gameState.epoch} of 3
             </span>
-            <span className="text-gray-400">•</span>
+            <span className="hidden sm:inline text-gray-400">•</span>
             <span className="text-gray-600">
               Room: {roomCode}
             </span>
-            <span className="text-gray-400">•</span>
+            <span className="hidden sm:inline text-gray-400">•</span>
             <span className="text-blue-600">
               You are: {ownPlayer?.name}
             </span>
           </div>
           
           {/* Turn Status */}
-          <div className={`mt-2 p-3 rounded-lg ${
+          <div className={`mt-2 p-2 lg:p-3 rounded-lg ${
             isMyTurn 
               ? 'bg-green-100 border border-green-300' 
               : 'bg-gray-100 border border-gray-300'
           }`}>
             {isMyTurn ? (
-              <div className="text-green-800 font-semibold">
+              <div className="text-green-800 font-semibold text-sm lg:text-base">
                 🎯 It's YOUR turn! Make your move.
               </div>
             ) : (
-              <div className="text-gray-700">
+              <div className="text-gray-700 text-sm lg:text-base">
                 ⏳ Waiting for <span className="font-semibold">{currentPlayer?.name}</span>'s turn
               </div>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-12 gap-2 h-[calc(100vh-200px)]">
-          {/* Left Column - Players and Game Log (Wider) */}
+        {/* Mobile Layout (< lg screens) - Single Column */}
+        <div className="lg:hidden space-y-4">
+          {/* Game Actions - First on mobile for easy access */}
+          <GameActions
+            gameState={gameState}
+            currentPlayer={currentPlayer}
+            onDrawTile={drawAndPlaceTile}
+            onPass={passTurn}
+            onAbandonGame={handleAbandonGame}
+            onEndGame={handleEndGame}
+            selectedCastle={selectedCastle}
+            selectedTile={selectedTile}
+            hasSelectedStartingTile={hasSelectedStartingTile}
+            playerId={playerId}
+          />
+
+          {/* Game Board */}
+          <div className="w-full">
+            <GameBoard
+              gameState={gameState}
+              onCellClick={handleCellClick}
+              selectedCastle={selectedCastle}
+              selectedTile={selectedTile}
+            />
+          </div>
+
+          {/* Players - Horizontal scroll on mobile */}
+          <div className="space-y-2">
+            <h3 className="text-lg font-semibold text-center">Players</h3>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {gameState.players.map(player => (
+                <div key={player.id} className="flex-shrink-0 w-64">
+                  <PlayerPanel
+                    player={player}
+                    isCurrentPlayer={player.id === currentPlayer.id}
+                    isOwnPlayer={player.id === playerId}
+                    onCastleSelect={setSelectedCastle}
+                    onStartingTileSelect={selectStartingTile}
+                    selectedCastle={selectedCastle}
+                    hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
+                    selectedTile={selectedTile}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Scores and Game Log */}
+          <div className="grid grid-cols-1 gap-4">
+            <ScoreDisplay gameState={gameState} />
+            <GameLog gameState={gameState} />
+          </div>
+        </div>
+
+        {/* Desktop Layout (>= lg screens) - Three Columns */}
+        <div className="hidden lg:grid lg:grid-cols-12 gap-4 h-[calc(100vh-200px)]">
+          {/* Left Column - Players and Game Log */}
           <div className="col-span-3 space-y-3 overflow-y-auto">
             {/* Players */}
             <div className="space-y-2">
@@ -406,7 +461,7 @@ const Index = () => {
                   onStartingTileSelect={selectStartingTile}
                   selectedCastle={selectedCastle}
                   hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
-                  selectedTile={selectedTile} // Pass selectedTile to disable interactions
+                  selectedTile={selectedTile}
                 />
               ))}
             </div>
@@ -415,7 +470,7 @@ const Index = () => {
             <GameLog gameState={gameState} />
           </div>
 
-          {/* Center Column - Game Board (Slightly smaller) */}
+          {/* Center Column - Game Board */}
           <div className="col-span-6 flex items-center justify-center">
             <div className="w-full max-w-3xl">
               <GameBoard
@@ -427,7 +482,7 @@ const Index = () => {
             </div>
           </div>
 
-          {/* Right Column - Actions and Scores (Wider) */}
+          {/* Right Column - Actions and Scores */}
           <div className="col-span-3 space-y-3 overflow-y-auto">
             <GameActions
               gameState={gameState}
