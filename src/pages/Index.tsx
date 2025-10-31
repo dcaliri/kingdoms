@@ -417,23 +417,22 @@ const Index = () => {
             />
           </div>
 
-          {/* Players - Horizontal scroll on mobile */}
-          <div className="space-y-2">
+          {/* Players - Vertical stack on mobile */}
+          <div className="space-y-3">
             <h3 className="text-lg font-semibold text-center">Players</h3>
-            <div className="flex gap-2 overflow-x-auto pb-2">
+            <div className="space-y-3">
               {gameState.players.map(player => (
-                <div key={player.id} className="flex-shrink-0 w-64">
-                  <PlayerPanel
-                    player={player}
-                    isCurrentPlayer={player.id === currentPlayer.id}
-                    isOwnPlayer={player.id === playerId}
-                    onCastleSelect={setSelectedCastle}
-                    onStartingTileSelect={selectStartingTile}
-                    selectedCastle={selectedCastle}
-                    hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
-                    selectedTile={selectedTile}
-                  />
-                </div>
+                <PlayerPanel
+                  key={player.id}
+                  player={player}
+                  isCurrentPlayer={player.id === currentPlayer.id}
+                  isOwnPlayer={player.id === playerId}
+                  onCastleSelect={setSelectedCastle}
+                  onStartingTileSelect={selectStartingTile}
+                  selectedCastle={selectedCastle}
+                  hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
+                  selectedTile={selectedTile}
+                />
               ))}
             </div>
           </div>
