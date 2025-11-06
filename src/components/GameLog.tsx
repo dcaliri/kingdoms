@@ -39,11 +39,11 @@ const GameLog: React.FC<GameLogProps> = ({ gameState }) => {
 
   const getPlayerColorClass = (color: string) => {
     switch (color) {
-      case 'red': return 'text-red-600 bg-red-50';
-      case 'blue': return 'text-blue-600 bg-blue-50';
-      case 'yellow': return 'text-yellow-700 bg-yellow-50';
-      case 'green': return 'text-green-600 bg-green-50';
-      default: return 'text-gray-600 bg-gray-50';
+      case 'red': return 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30';
+      case 'blue': return 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30';
+      case 'yellow': return 'text-yellow-700 dark:text-yellow-500 bg-yellow-50 dark:bg-yellow-900/30';
+      case 'green': return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30';
+      default: return 'text-muted-foreground bg-muted';
     }
   };
 
@@ -62,7 +62,7 @@ const GameLog: React.FC<GameLogProps> = ({ gameState }) => {
           <Clock className="h-4 w-4" />
           Game Log
         </CardTitle>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-muted-foreground">
           {logEntries.length} actions • Epoch {gameState.epoch}
         </div>
       </CardHeader>
@@ -71,7 +71,7 @@ const GameLog: React.FC<GameLogProps> = ({ gameState }) => {
         <ScrollArea className="h-full" ref={scrollAreaRef}>
           <div className="p-3 space-y-3">
             {Object.keys(groupedEntries).length === 0 ? (
-              <div className="text-center text-gray-500 text-sm py-8">
+              <div className="text-center text-muted-foreground text-sm py-8">
                 <User className="h-6 w-6 mx-auto mb-2 opacity-50" />
                 <p className="text-xs">No actions yet</p>
                 <p className="text-xs opacity-75">Player actions will appear here</p>
@@ -82,7 +82,7 @@ const GameLog: React.FC<GameLogProps> = ({ gameState }) => {
                 .map(([epoch, entries]) => (
                   <div key={epoch} className="space-y-2">
                     {/* Epoch Header */}
-                    <div className="sticky top-0 bg-gray-100 px-2 py-1 rounded text-xs font-semibold text-gray-700 border z-10">
+                    <div className="sticky top-0 bg-muted px-2 py-1 rounded text-xs font-semibold text-foreground border border-border z-10">
                       📜 Epoch {epoch}
                     </div>
                     
@@ -90,7 +90,7 @@ const GameLog: React.FC<GameLogProps> = ({ gameState }) => {
                     {entries.map((entry) => (
                       <div
                         key={entry.id}
-                        className="flex items-start gap-2 p-2 rounded-lg bg-white border border-gray-100 hover:bg-gray-50 transition-colors"
+                        className="flex items-start gap-2 p-2 rounded-lg bg-card border border-border hover:bg-muted/50 transition-colors"
                       >
                         {/* Player Color Indicator */}
                         <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
@@ -98,7 +98,7 @@ const GameLog: React.FC<GameLogProps> = ({ gameState }) => {
                           entry.playerColor === 'blue' ? 'bg-blue-500' :
                           entry.playerColor === 'yellow' ? 'bg-yellow-500' :
                           entry.playerColor === 'green' ? 'bg-green-500' :
-                          'bg-gray-500'
+                          'bg-muted-foreground'
                         }`} />
                         
                         {/* Log Content */}
@@ -107,11 +107,11 @@ const GameLog: React.FC<GameLogProps> = ({ gameState }) => {
                             <span className={`font-semibold px-1.5 py-0.5 rounded text-xs ${getPlayerColorClass(entry.playerColor)}`}>
                               {entry.playerName}
                             </span>
-                            <span className="ml-1 text-gray-700 text-xs">
+                            <span className="ml-1 text-foreground text-xs">
                               {entry.action}
                             </span>
                           </div>
-                          <div className="text-xs text-gray-400 mt-0.5">
+                          <div className="text-xs text-muted-foreground mt-0.5">
                             {formatTime(entry.timestamp)}
                           </div>
                         </div>

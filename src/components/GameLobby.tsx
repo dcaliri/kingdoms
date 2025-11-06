@@ -7,6 +7,7 @@ import { Room } from '@/types/room';
 import { getRoom, setPlayerReady, startGame, leaveRoom, subscribeToRoom, getGameState } from '@/utils/supabaseRoomManager';
 import { saveGameSession, updateSessionState } from '@/utils/sessionManager';
 import { toast } from 'sonner';
+import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 
 interface GameLobbyProps {
   roomCode: string;
@@ -239,7 +240,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
 
   if (!room) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p>Loading room...</p>
@@ -254,7 +255,10 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   const allPlayersReady = room.players.length >= 2 && room.players.every(p => p.isReady);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
+    <div className="min-h-screen bg-background p-4 relative">
+      <div className="absolute top-4 right-4 z-10">
+        <ThemeSwitcher />
+      </div>
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader className="text-center">

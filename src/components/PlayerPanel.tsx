@@ -101,9 +101,9 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
   return (
     <Card className={cn(
       "transition-all",
-      isCurrentPlayer && "ring-2 ring-blue-500 bg-blue-50",
+      isCurrentPlayer && "ring-2 ring-primary bg-primary/10",
       isDisabledDueToTile && isOwnPlayer && "opacity-60",
-      showSpyMode && !isOwnPlayer && "ring-2 ring-red-400 bg-red-50"
+      showSpyMode && !isOwnPlayer && "ring-2 ring-destructive bg-destructive/10"
     )}>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between text-sm lg:text-base">
@@ -116,9 +116,9 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
               player.color === 'green' && "bg-green-500"
             )} />
             <span className="truncate">{player.name}</span>
-            {isOwnPlayer && <span className="text-xs text-blue-600">(You)</span>}
+            {isOwnPlayer && <span className="text-xs text-primary">(You)</span>}
             {showSpyMode && !isOwnPlayer && (
-              <span className="text-xs text-red-600 bg-red-100 px-1 rounded animate-pulse">
+              <span className="text-xs text-destructive bg-destructive/20 px-1 rounded animate-pulse">
                 🕵️ SPY
               </span>
             )}
@@ -148,7 +148,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
                 disabled={!canInteract}
                 className={cn(
                   "h-10 w-10 lg:h-12 lg:w-12 p-1 transition-all",
-                  selectedCastle?.id === castle.id && "ring-2 ring-blue-400 bg-blue-600",
+                  selectedCastle?.id === castle.id && "ring-2 ring-primary bg-primary",
                   isDisabledDueToTile && "cursor-not-allowed opacity-50"
                 )}
                 title={
@@ -167,7 +167,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
               </Button>
             ))}
             {sortedAvailableCastles.length === 0 && (
-              <span className="text-xs text-gray-500">None</span>
+              <span className="text-xs text-muted-foreground">None</span>
             )}
           </div>
         </div>
@@ -210,7 +210,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
                       Place
                     </Button>
                   ) : (
-                    <div className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded font-medium animate-pulse">
+                    <div className="text-xs text-destructive bg-destructive/20 px-2 py-1 rounded font-medium animate-pulse">
                       🕵️ Revealed!
                     </div>
                   )}
@@ -218,10 +218,10 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
               ) : (
                 // Show hidden tile to other players (when not in spy mode)
                 <>
-                  <div className="w-10 h-10 lg:w-12 lg:h-12 bg-blue-100 border-2 border-blue-300 rounded flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs text-blue-700 font-bold">?</span>
+                  <div className="w-10 h-10 lg:w-12 lg:h-12 bg-primary/20 border-2 border-primary/40 rounded flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs text-primary font-bold">?</span>
                   </div>
-                  <div className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded font-medium">
+                  <div className="text-xs text-primary bg-primary/20 px-2 py-1 rounded font-medium">
                     Has Tile
                   </div>
                 </>
@@ -229,10 +229,10 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 lg:w-12 lg:h-12 bg-gray-200 border-2 border-dashed border-gray-300 rounded flex items-center justify-center flex-shrink-0">
-                <span className="text-xs text-gray-500">✓</span>
+              <div className="w-10 h-10 lg:w-12 lg:h-12 bg-muted border-2 border-dashed border-border rounded flex items-center justify-center flex-shrink-0">
+                <span className="text-xs text-muted-foreground">✓</span>
               </div>
-              <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+              <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
                 {isOwnPlayer ? "Already played" : "Played"}
               </div>
             </div>
@@ -240,7 +240,7 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
         </div>
 
         {/* Placed Castles Count */}
-        <div className="text-xs text-gray-600">
+        <div className="text-xs text-muted-foreground">
           Placed: {placedCastles.length} castles
         </div>
 
@@ -248,22 +248,22 @@ const PlayerPanel: React.FC<PlayerPanelProps> = ({
         {isOwnPlayer && isCurrentPlayer && (
           <div className="text-xs">
             {selectedTile && (
-              <div className="text-blue-600 font-semibold">
+              <div className="text-primary font-semibold">
                 📋 Tile drawn - place it on the board
               </div>
             )}
             {selectedCastle && !selectedTile && (
-              <div className="text-green-600 font-semibold">
+              <div className="text-green-600 dark:text-green-400 font-semibold">
                 🏰 Castle selected - click board to place
               </div>
             )}
             {hasSelectedStartingTile && !selectedTile && (
-              <div className="text-purple-600 font-semibold">
+              <div className="text-purple-600 dark:text-purple-400 font-semibold">
                 🎯 Starting tile ready - click board to place
               </div>
             )}
             {!selectedCastle && !selectedTile && !hasSelectedStartingTile && (
-              <div className="text-gray-500">
+              <div className="text-muted-foreground">
                 Choose an action for your turn
               </div>
             )}

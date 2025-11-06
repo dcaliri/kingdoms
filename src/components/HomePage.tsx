@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Users, Plus, Wifi } from 'lucide-react';
 import { createRoom, joinRoom } from '@/utils/supabaseRoomManager';
 import { toast } from 'sonner';
+import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 
 interface HomePageProps {
   onRoomJoined: (roomCode: string, playerId: string) => void;
@@ -64,7 +65,10 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
 
   if (mode === 'create') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+        <div className="absolute top-4 right-4">
+          <ThemeSwitcher />
+        </div>
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold">Create Room</CardTitle>
@@ -108,7 +112,10 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
 
   if (mode === 'join') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+        <div className="absolute top-4 right-4">
+          <ThemeSwitcher />
+        </div>
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold">Join Room</CardTitle>
@@ -163,7 +170,10 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4 relative">
+      <div className="absolute top-4 right-4">
+        <ThemeSwitcher />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold mb-2">Kingdoms</CardTitle>

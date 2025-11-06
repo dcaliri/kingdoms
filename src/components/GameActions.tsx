@@ -48,7 +48,7 @@ const GameActions: React.FC<GameActionsProps> = ({
         <CardTitle className="text-lg">Actions</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="text-sm text-gray-600 mb-4">
+        <div className="text-sm text-muted-foreground mb-4">
           Choose an action for your turn:
         </div>
 
@@ -67,18 +67,18 @@ const GameActions: React.FC<GameActionsProps> = ({
 
         {/* Show restriction message if tile already drawn */}
         {selectedTile && (
-          <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-            <div className="flex items-center gap-2 text-blue-800 text-sm font-semibold mb-2">
+          <div className="bg-primary/10 p-3 rounded-lg border border-primary/20">
+            <div className="flex items-center gap-2 text-primary text-sm font-semibold mb-2">
               <AlertCircle className="h-4 w-4" />
               Tile must be placed first
             </div>
-            <div className="text-sm text-blue-700 mb-2">
+            <div className="text-sm text-primary/90 mb-2">
               You drew a tile and must place it before taking other actions:
             </div>
             <div className="flex justify-center">
               <TilePreview tile={selectedTile} />
             </div>
-            <div className="text-xs text-blue-600 mt-2 text-center">
+            <div className="text-xs text-primary mt-2 text-center">
               Click an empty space on the board to place it
             </div>
           </div>
@@ -86,12 +86,12 @@ const GameActions: React.FC<GameActionsProps> = ({
 
         {/* Show current selection status */}
         {!selectedTile && (
-          <div className="text-xs text-gray-500 space-y-1">
+          <div className="text-xs text-muted-foreground space-y-1">
             <div>• Select a castle from your panel, then click an empty board space</div>
             <div>• Click "Draw & Place Tile" to randomly draw a tile, then place it</div>
             <div>• Select your starting tile from your panel, then place it</div>
             {selectedCastle && (
-              <div className="text-green-600 font-semibold">
+              <div className="text-green-600 dark:text-green-400 font-semibold">
                 ✓ Castle selected - click again to deselect, or click board to place
               </div>
             )}
@@ -108,7 +108,7 @@ const GameActions: React.FC<GameActionsProps> = ({
           </Button>
         )}
 
-        <div className="text-xs text-gray-500 mt-4">
+        <div className="text-xs text-muted-foreground mt-4">
           {selectedCastle && !selectedTile && "Castle selected - click an empty space to place it"}
           {selectedTile && "Tile ready - click an empty space to place it"}
           {hasSelectedStartingTile && !selectedTile && "Starting tile selected - click an empty space to place it"}
@@ -118,14 +118,14 @@ const GameActions: React.FC<GameActionsProps> = ({
 
         {/* Game Management Actions */}
         <div className="space-y-2">
-          <div className="text-sm font-semibold text-gray-700 mb-2">Game Management</div>
+          <div className="text-sm font-semibold text-foreground mb-2">Game Management</div>
           
           {/* End Game - Only for host */}
           {isHost && (
             <Button
               onClick={onEndGame}
               variant="outline"
-              className="w-full text-orange-600 border-orange-300 hover:bg-orange-50"
+              className="w-full text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950"
             >
               <Square className="h-4 w-4 mr-2" />
               End Game (Host)
@@ -143,7 +143,7 @@ const GameActions: React.FC<GameActionsProps> = ({
           </Button>
         </div>
 
-        <div className="text-xs text-gray-500 mt-2 space-y-1">
+        <div className="text-xs text-muted-foreground mt-2 space-y-1">
           <div>• <strong>End Game:</strong> Host can end the game and calculate final scores</div>
           <div>• <strong>Abandon Game:</strong> Leave the game (if you're the last player, others win)</div>
         </div>

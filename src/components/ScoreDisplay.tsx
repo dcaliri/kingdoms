@@ -77,7 +77,7 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ gameState }) => {
         <CardTitle className="text-lg flex items-center justify-between">
           Current Scores
           {showPotentialScores && (
-            <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded animate-pulse">
+            <span className="text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded animate-pulse">
               🎯 Potential Scores Active
             </span>
           )}
@@ -101,7 +101,7 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ gameState }) => {
                   {player.gold} Gold
                 </div>
                 {showPotentialScores && (
-                  <div className="text-xs text-green-600 font-semibold animate-pulse">
+                  <div className="text-xs text-green-600 dark:text-green-400 font-semibold animate-pulse">
                     Potential: +{currentScores[player.id] || 0}
                   </div>
                 )}
@@ -110,10 +110,10 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ gameState }) => {
           ))}
         </div>
         
-        <div className="mt-4 pt-4 border-t">
-          <div className="text-xs text-gray-500">
+        <div className="mt-4 pt-4 border-t border-border">
+          <div className="text-xs text-muted-foreground">
             {showPotentialScores ? (
-              <div className="text-green-600 font-medium">
+              <div className="text-green-600 dark:text-green-400 font-medium">
                 🎉 Easter egg active! Showing potential epoch scores...
               </div>
             ) : (

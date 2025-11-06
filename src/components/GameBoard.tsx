@@ -26,10 +26,10 @@ const GameBoard: React.FC<GameBoardProps> = ({
       <div
         key={`${row}-${col}`}
         className={cn(
-          "aspect-square border-2 border-gray-300 flex items-center justify-center text-sm font-bold cursor-pointer transition-all hover:shadow-lg",
-          isEmpty && "bg-gray-50 hover:bg-gray-100",
-          canPlace && "border-blue-400 bg-blue-50 hover:bg-blue-100 ring-2 ring-blue-200",
-          !isEmpty && "bg-white shadow-md hover:shadow-lg"
+          "aspect-square border-2 border-border flex items-center justify-center text-sm font-bold cursor-pointer transition-all hover:shadow-lg",
+          isEmpty && "bg-muted/30 hover:bg-muted/50",
+          canPlace && "border-primary bg-primary/10 hover:bg-primary/20 ring-2 ring-primary/30",
+          !isEmpty && "bg-card shadow-md hover:shadow-lg"
         )}
         onClick={() => onCellClick(row, col)}
       >
@@ -68,7 +68,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
   };
 
   return (
-    <div className="bg-white p-4 lg:p-8 rounded-xl shadow-xl border-2 border-gray-200 w-full">
+    <div className="bg-card p-4 lg:p-8 rounded-xl shadow-xl border-2 border-border w-full">
       <div className="grid grid-cols-6 gap-1 lg:gap-3 w-full max-w-2xl mx-auto">
         {Array.from({ length: BOARD_ROWS }, (_, row) =>
           Array.from({ length: BOARD_COLS }, (_, col) => renderCell(row, col))
@@ -76,14 +76,14 @@ const GameBoard: React.FC<GameBoardProps> = ({
       </div>
       
       <div className="mt-4 lg:mt-6 text-center">
-        <div className="text-lg lg:text-xl text-gray-700 font-semibold">
+        <div className="text-lg lg:text-xl text-foreground font-semibold">
           Epoch {gameState.epoch} of 3
         </div>
-        <div className="text-sm lg:text-base text-gray-600 mt-2">
-          Current Player: <span className="font-semibold text-blue-600">{gameState.players[gameState.currentPlayerIndex].name}</span>
+        <div className="text-sm lg:text-base text-muted-foreground mt-2">
+          Current Player: <span className="font-semibold text-primary">{gameState.players[gameState.currentPlayerIndex].name}</span>
         </div>
         {(selectedCastle || selectedTile) && (
-          <div className="text-sm lg:text-base text-blue-600 mt-3 font-medium bg-blue-50 p-2 lg:p-3 rounded-lg border border-blue-200">
+          <div className="text-sm lg:text-base text-primary mt-3 font-medium bg-primary/10 p-2 lg:p-3 rounded-lg border border-primary/20">
             Click an empty space to place your {selectedCastle ? 'castle' : 'tile'}
           </div>
         )}
