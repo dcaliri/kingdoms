@@ -9,6 +9,7 @@ import GameActions from '@/components/GameActions';
 import ScoreDisplay from '@/components/ScoreDisplay';
 import GameLog from '@/components/GameLog';
 import EpochScoreScreen from '@/components/EpochScoreScreen';
+import VideoChat from '@/components/VideoChat';
 import { useGamePlay } from '@/hooks/useGamePlay';
 import { supabase } from '@/integrations/supabase/client';
 import { getRoom, getGameState } from '@/utils/supabaseRoomManager';
@@ -355,6 +356,13 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
+      {/* Video Chat - only show when game is playing */}
+      <VideoChat
+        roomCode={roomCode}
+        playerName={ownPlayer?.name || 'Player'}
+        isVisible={appState === 'playing' && gameState.gamePhase !== 'finished'}
+      />
+      
       <div className="w-full px-2 py-2 lg:px-4 lg:py-4">
         {/* Header */}
         <div className="text-center mb-3">
