@@ -242,7 +242,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p>Loading room...</p>
         </div>
       </div>
@@ -264,7 +264,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold">Game Lobby</CardTitle>
             <div className="flex items-center justify-center gap-2 mt-2">
-              <span className="text-lg font-mono bg-gray-100 px-3 py-1 rounded">
+              <span className="text-lg font-mono bg-muted px-3 py-1 rounded">
                 {roomCode}
               </span>
               <Button
@@ -288,7 +288,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
               <span className={`text-xs ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
                 {isConnected ? 'Connected' : 'Connection lost'}
               </span>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-muted-foreground">
                 • Updated {Math.floor((Date.now() - lastUpdate) / 1000)}s ago
               </span>
             </div>
@@ -308,7 +308,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
                 {room.players.map((player) => (
                   <div
                     key={player.id}
-                    className="flex items-center justify-between p-3 bg-white rounded-lg border"
+                    className="flex items-center justify-between p-3 bg-card rounded-lg border border-border"
                   >
                     <div className="flex items-center gap-3">
                       {player.color && (
@@ -324,7 +324,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
                         <Crown className="h-4 w-4 text-yellow-500" />
                       )}
                       {player.id === playerId && (
-                        <span className="text-xs text-blue-600">(You)</span>
+                        <span className="text-xs text-primary">(You)</span>
                       )}
                     </div>
                     
@@ -347,15 +347,15 @@ const GameLobby: React.FC<GameLobbyProps> = ({
             </div>
 
             {/* Game Status */}
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
+            <div className="text-center p-4 bg-muted rounded-lg">
               {room.players.length < 2 ? (
-                <p className="text-gray-600">Waiting for more players to join...</p>
+                <p className="text-muted-foreground">Waiting for more players to join...</p>
               ) : allPlayersReady ? (
-                <p className="text-green-600 font-semibold">All players ready! Host can start the game.</p>
+                <p className="text-green-600 dark:text-green-400 font-semibold">All players ready! Host can start the game.</p>
               ) : (
-                <p className="text-gray-600">Waiting for all players to be ready...</p>
+                <p className="text-muted-foreground">Waiting for all players to be ready...</p>
               )}
-              <p className="text-xs text-gray-500 mt-1">Room status: {room.status}</p>
+              <p className="text-xs text-muted-foreground mt-1">Room status: {room.status}</p>
             </div>
 
             {/* Action Buttons */}

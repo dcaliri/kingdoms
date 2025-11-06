@@ -312,15 +312,18 @@ const Index = () => {
 
   if (gameState.gamePhase === 'finished') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+        <div className="absolute top-4 right-4">
+          <ThemeSwitcher />
+        </div>
+        <div className="text-center bg-card p-8 rounded-lg shadow-lg max-w-md w-full border border-border">
           <h1 className="text-3xl font-bold mb-4">Game Over!</h1>
           {gameState.winner ? (
-            <h2 className="text-2xl text-yellow-600 mb-6">
+            <h2 className="text-2xl text-yellow-600 dark:text-yellow-400 mb-6">
               🏆 {gameState.winner.name} Wins! 🏆
             </h2>
           ) : (
-            <h2 className="text-2xl text-gray-600 mb-6">
+            <h2 className="text-2xl text-foreground mb-6">
               Game Ended
             </h2>
           )}
@@ -333,7 +336,7 @@ const Index = () => {
                     <span className="text-lg">{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅'}</span>
                     <span>{player.name}</span>
                   </span>
-                  <span className="font-bold text-yellow-600">{player.gold} Gold</span>
+                  <span className="font-bold text-yellow-600 dark:text-yellow-400">{player.gold} Gold</span>
                 </div>
               ))}
           </div>
@@ -342,7 +345,7 @@ const Index = () => {
               clearGameSession();
               window.location.reload();
             }}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-lg transition-colors"
           >
             Play Again
           </button>

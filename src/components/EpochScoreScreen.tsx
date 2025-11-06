@@ -176,9 +176,9 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
   const getPositionIcon = (index: number) => {
     switch (index) {
       case 0: return <Crown className="h-6 w-6 text-yellow-500" />;
-      case 1: return <Medal className="h-6 w-6 text-gray-400" />;
-      case 2: return <Award className="h-6 w-6 text-amber-600" />;
-      default: return <Trophy className="h-6 w-6 text-gray-300" />;
+      case 1: return <Medal className="h-6 w-6 text-muted-foreground" />;
+      case 2: return <Award className="h-6 w-6 text-amber-600 dark:text-amber-500" />;
+      default: return <Trophy className="h-6 w-6 text-muted-foreground/60" />;
     }
   };
 
@@ -198,7 +198,7 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
     return (
       <div
         key={`${row}-${col}`}
-        className="aspect-square border border-gray-300 flex items-center justify-center text-xs bg-white"
+        className="aspect-square border border-border flex items-center justify-center text-xs bg-card"
       >
         {cell && (
           <div className="w-full h-full flex flex-col items-center justify-center p-1">
@@ -451,9 +451,9 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
   const detailedScores = calculateDetailedScores();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <Card className="w-full max-w-6xl bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-yellow-400 my-4">
-        <CardHeader className="text-center bg-gradient-to-r from-yellow-400 to-orange-400 text-white rounded-t-lg">
+    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <Card className="w-full max-w-6xl bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-950/30 dark:to-orange-950/30 border-2 border-yellow-400 dark:border-yellow-600 my-4">
+        <CardHeader className="text-center bg-gradient-to-r from-yellow-400 to-orange-400 dark:from-yellow-600 dark:to-orange-600 text-white rounded-t-lg">
           <CardTitle className="text-3xl font-bold flex items-center justify-center gap-3">
             <Trophy className="h-8 w-8" />
             Epoch {epochNumber} Results
@@ -487,12 +487,12 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
                 key={player.id} 
                 className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
                   index === 0 
-                    ? 'bg-yellow-100 border-yellow-400 shadow-lg' 
+                    ? 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-400 dark:border-yellow-600 shadow-lg' 
                     : index === 1
-                    ? 'bg-gray-50 border-gray-300'
+                    ? 'bg-muted border-border'
                     : index === 2
-                    ? 'bg-amber-50 border-amber-300'
-                    : 'bg-white border-gray-200'
+                    ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                    : 'bg-card border-border'
                 }`}
               >
                 <div className="flex items-center gap-4">
@@ -506,18 +506,18 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
                     }`} />
                     <div>
                       <div className="font-bold text-lg">{player.name}</div>
-                      <div className="text-sm text-gray-600">{getPositionText(index)}</div>
+                      <div className="text-sm text-muted-foreground">{getPositionText(index)}</div>
                     </div>
                   </div>
                 </div>
                 
                 <div className="text-right">
                   <div className={`text-2xl font-bold ${
-                    index === 0 ? 'text-yellow-600' : 'text-green-600'
+                    index === 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'
                   }`}>
                     +{epochScores[player.id] || 0}
                   </div>
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-muted-foreground">
                     Total: {player.gold} gold
                   </div>
                 </div>
@@ -529,7 +529,7 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
           <div className="mb-8">
             <h3 className="text-xl font-bold mb-4 text-center">Final Board State</h3>
             <div className="flex justify-center">
-              <div className="grid grid-cols-6 gap-1 bg-gray-200 p-4 rounded-lg">
+              <div className="grid grid-cols-6 gap-1 bg-muted p-4 rounded-lg">
                 {Array.from({ length: 5 }, (_, row) =>
                   Array.from({ length: 6 }, (_, col) => renderBoardCell(row, col))
                 )}
@@ -542,7 +542,7 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
             <h3 className="text-xl font-bold mb-4 text-center">Score Breakdown</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {gameState.players.map(player => (
-                <div key={player.id} className="bg-white p-4 rounded-lg border border-gray-300">
+                <div key={player.id} className="bg-card p-4 rounded-lg border border-border">
                   <div className="flex items-center gap-2 mb-3">
                     <div className={`w-4 h-4 rounded-full ${
                       player.color === 'red' ? 'bg-red-500' :
@@ -559,9 +559,9 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
                       <div className="grid grid-cols-5 gap-1 mt-1">
                         {detailedScores[player.id]?.rows.map((score, index) => (
                           <div key={index} className={`text-center p-1 rounded text-xs ${
-                            score > 0 ? 'bg-green-100 text-green-800' :
-                            score < 0 ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-600'
+                            score > 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                            score < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
+                            'bg-muted text-muted-foreground'
                           }`}>
                             R{index + 1}: {score}
                           </div>
@@ -574,9 +574,9 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
                       <div className="grid grid-cols-6 gap-1 mt-1">
                         {detailedScores[player.id]?.columns.map((score, index) => (
                           <div key={index} className={`text-center p-1 rounded text-xs ${
-                            score > 0 ? 'bg-green-100 text-green-800' :
-                            score < 0 ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-600'
+                            score > 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                            score < 0 ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300' :
+                            'bg-muted text-muted-foreground'
                           }`}>
                             C{index + 1}: {score}
                           </div>
@@ -584,11 +584,11 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
                       </div>
                     </div>
                     
-                    <div className="pt-2 border-t">
-                      <strong className="text-green-600">
+                    <div className="pt-2 border-t border-border">
+                      <strong className="text-green-600 dark:text-green-400">
                         Total: {epochScores[player.id] || 0} points
                       </strong>
-                      <div className="text-xs text-gray-500 mt-1">
+                      <div className="text-xs text-muted-foreground mt-1">
                         Calculated: {detailedScores[player.id]?.total || 0}
                       </div>
                     </div>
@@ -610,11 +610,11 @@ const EpochScoreScreen: React.FC<EpochScoreScreenProps> = ({
               </Button>
             ) : (
               <div className="text-center">
-                <div className="text-gray-600 mb-2">Waiting for host to continue...</div>
-                <div className="animate-pulse text-blue-600 font-semibold">
+                <div className="text-muted-foreground mb-2">Waiting for host to continue...</div>
+                <div className="animate-pulse text-primary font-semibold">
                   {epochNumber === 3 ? 'Host will view final results' : 'Host will start the next epoch'}
                 </div>
-                <div className="text-xs text-gray-500 mt-2">
+                <div className="text-xs text-muted-foreground mt-2">
                   If you're stuck here, try the refresh button above
                 </div>
               </div>
