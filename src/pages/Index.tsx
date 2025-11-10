@@ -274,12 +274,22 @@ const Index = () => {
 
   if (appState === 'lobby') {
     return (
-      <GameLobby
-        roomCode={roomCode}
-        playerId={playerId}
-        onGameStart={handleGameStart}
-        onLeaveRoom={handleLeaveRoom}
-      />
+      <>
+        <GameLobby
+          roomCode={roomCode}
+          playerId={playerId}
+          onGameStart={handleGameStart}
+          onLeaveRoom={handleLeaveRoom}
+        />
+        {/* Video Chat available in lobby */}
+        {roomCode && playerId && room && (
+          <VideoChat
+            roomCode={roomCode}
+            playerName={room.players.find(p => p.id === playerId)?.name || 'Player'}
+            isVisible={true}
+          />
+        )}
+      </>
     );
   }
 
@@ -298,59 +308,75 @@ const Index = () => {
   if (showEpochScores) {
     const isHost = gameState.players[0]?.id === playerId;
     return (
-      <EpochScoreScreen
-        gameState={gameState}
-        epochScores={epochScores}
-        epochNumber={completedEpoch}
-        onContinue={continueToNextEpoch}
-        onGameStateUpdate={handleGameStateUpdateFromEpochScreen}
-        isHost={isHost}
-        roomId={room?.id || ''}
-      />
+      <>
+        <EpochScoreScreen
+          gameState={gameState}
+          epochScores={epochScores}
+          epochNumber={completedEpoch}
+          onContinue={continueToNextEpoch}
+          onGameStateUpdate={handleGameStateUpdateFromEpochScreen}
+          isHost={isHost}
+          roomId={room?.id || ''}
+        />
+        {/* Video Chat persists during epoch score screen */}
+        <VideoChat
+          roomCode={roomCode}
+          playerName={gameState.players.find(p => p.id === playerId)?.name || 'Player'}
+          isVisible={true}
+        />
+      </>
     );
   }
 
   if (gameState.gamePhase === 'finished') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
-        <div className="absolute top-4 right-4">
-          <ThemeSwitcher />
-        </div>
-        <div className="text-center bg-card p-8 rounded-lg shadow-lg max-w-md w-full border border-border">
-          <h1 className="text-3xl font-bold mb-4">Game Over!</h1>
-          {gameState.winner ? (
-            <h2 className="text-2xl text-yellow-600 dark:text-yellow-400 mb-6">
-              🏆 {gameState.winner.name} Wins! 🏆
-            </h2>
-          ) : (
-            <h2 className="text-2xl text-foreground mb-6">
-              Game Ended
-            </h2>
-          )}
-          <div className="space-y-2 mb-6">
-            {gameState.players
-              .sort((a, b) => b.gold - a.gold)
-              .map((player, index) => (
-                <div key={player.id} className="flex justify-between items-center">
-                  <span className="flex items-center gap-2">
-                    <span className="text-lg">{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅'}</span>
-                    <span>{player.name}</span>
-                  </span>
-                  <span className="font-bold text-yellow-600 dark:text-yellow-400">{player.gold} Gold</span>
-                </div>
-              ))}
+      <>
+        <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+          <div className="absolute top-4 right-4">
+            <ThemeSwitcher />
           </div>
-          <button
-            onClick={() => {
-              clearGameSession();
-              window.location.reload();
-            }}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-lg transition-colors"
-          >
-            Play Again
-          </button>
+          <div className="text-center bg-card p-8 rounded-lg shadow-lg max-w-md w-full border border-border">
+            <h1 className="text-3xl font-bold mb-4">Game Over!</h1>
+            {gameState.winner ? (
+              <h2 className="text-2xl text-yellow-600 dark:text-yellow-400 mb-6">
+                🏆 {gameState.winner.name} Wins! 🏆
+              </h2>
+            ) : (
+              <h2 className="text-2xl text-foreground mb-6">
+                Game Ended
+              </h2>
+            )}
+            <div className="space-y-2 mb-6">
+              {gameState.players
+                .sort((a, b) => b.gold - a.gold)
+                .map((player, index) => (
+                  <div key={player.id} className="flex justify-between items-center">
+                    <span className="flex items-center gap-2">
+                      <span className="text-lg">{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅'}</span>
+                      <span>{player.name}</span>
+                    </span>
+                    <span className="font-bold text-yellow-600 dark:text-yellow-400">{player.gold} Gold</span>
+                  </div>
+                ))}
+            </div>
+            <button
+              onClick={() => {
+                clearGameSession();
+                window.location.reload();
+              }}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-lg transition-colors"
+            >
+              Play Again
+            </button>
+          </div>
         </div>
-      </div>
+        {/* Video Chat persists even after game ends */}
+        <VideoChat
+          roomCode={roomCode}
+          playerName={gameState.players.find(p => p.id === playerId)?.name || 'Player'}
+          isVisible={true}
+        />
+      </>
     );
   }
 
@@ -360,11 +386,11 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Video Chat - only show when game is playing */}
+      {/* Video Chat - now persists across all game states */}
       <VideoChat
         roomCode={roomCode}
         playerName={ownPlayer?.name || 'Player'}
-        isVisible={appState === 'playing' && gameState.gamePhase !== 'finished'}
+        isVisible={true}
       />
       
       <div className="w-full px-2 py-2 lg:px-4 lg:py-4">
