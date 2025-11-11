@@ -26,6 +26,7 @@ const Index = () => {
   const [room, setRoom] = useState<Room | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [isRestoring, setIsRestoring] = useState(true);
+  const [playerName, setPlayerName] = useState('');
 
   const {
     selectedCastle,
@@ -62,6 +63,7 @@ const Index = () => {
         // Restore basic session data
         setRoomCode(session.roomCode);
         setPlayerId(session.playerId);
+        setPlayerName(session.playerName);
         
         // Get current room data
         const currentRoom = await getRoom(session.roomCode);
@@ -84,6 +86,7 @@ const Index = () => {
         }
 
         setRoom(currentRoom);
+        setPlayerName(playerInRoom.name);
 
         // Restore appropriate app state
         if (session.appState === 'playing' || currentRoom.status === 'playing') {
@@ -194,15 +197,18 @@ const Index = () => {
     setGameState(initialGameState);
     setAppState('playing');
     
-    // Update session
+    // Update session and player name
     const playerInRoom = roomData.players.find(p => p.id === playerId);
-    saveGameSession({
-      appState: 'playing',
-      roomCode: roomData.code,
-      playerId: playerId,
-      roomId: roomData.id,
-      playerName: playerInRoom?.name || ''
-    });
+    if (playerInRoom) {
+      setPlayerName(playerInRoom.name);
+      saveGameSession({
+        appState: 'playing',
+        roomCode: roomData.code,
+        playerId: playerId,
+        roomId: roomData.id,
+        playerName: playerInRoom.name
+      });
+    }
   };
 
   const handleLeaveRoom = () => {
@@ -213,6 +219,7 @@ const Index = () => {
     setPlayerId('');
     setRoom(null);
     setGameState(null);
+    setPlayerName('');
     
     // Clear session
     clearGameSession();
@@ -256,6 +263,9 @@ const Index = () => {
     }
   };
 
+  // Determine if video chat should be visible
+  const shouldShowVideoChat = roomCode && playerId && playerName && appState !== 'home';
+
   // Show loading screen while restoring session
   if (isRestoring) {
     return (
@@ -268,47 +278,38 @@ const Index = () => {
     );
   }
 
-  if (appState === 'home') {
-    return <HomePage onRoomJoined={handleRoomJoined} />;
-  }
+  // Render the appropriate screen content
+  const renderMainContent = () => {
+    if (appState === 'home') {
+      return <HomePage onRoomJoined={handleRoomJoined} />;
+    }
 
-  if (appState === 'lobby') {
-    return (
-      <>
+    if (appState === 'lobby') {
+      return (
         <GameLobby
           roomCode={roomCode}
           playerId={playerId}
           onGameStart={handleGameStart}
           onLeaveRoom={handleLeaveRoom}
         />
-        {/* Video Chat available in lobby */}
-        {roomCode && playerId && room && (
-          <VideoChat
-            roomCode={roomCode}
-            playerName={room.players.find(p => p.id === playerId)?.name || 'Player'}
-            isVisible={true}
-          />
-        )}
-      </>
-    );
-  }
+      );
+    }
 
-  if (!gameState) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p>Loading game...</p>
+    if (!gameState) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p>Loading game...</p>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  // Show epoch score screen if needed
-  if (showEpochScores) {
-    const isHost = gameState.players[0]?.id === playerId;
-    return (
-      <>
+    // Show epoch score screen if needed
+    if (showEpochScores) {
+      const isHost = gameState.players[0]?.id === playerId;
+      return (
         <EpochScoreScreen
           gameState={gameState}
           epochScores={epochScores}
@@ -318,19 +319,11 @@ const Index = () => {
           isHost={isHost}
           roomId={room?.id || ''}
         />
-        {/* Video Chat persists during epoch score screen */}
-        <VideoChat
-          roomCode={roomCode}
-          playerName={gameState.players.find(p => p.id === playerId)?.name || 'Player'}
-          isVisible={true}
-        />
-      </>
-    );
-  }
+      );
+    }
 
-  if (gameState.gamePhase === 'finished') {
-    return (
-      <>
+    if (gameState.gamePhase === 'finished') {
+      return (
         <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
           <div className="absolute top-4 right-4">
             <ThemeSwitcher />
@@ -370,160 +363,58 @@ const Index = () => {
             </button>
           </div>
         </div>
-        {/* Video Chat persists even after game ends */}
-        <VideoChat
-          roomCode={roomCode}
-          playerName={gameState.players.find(p => p.id === playerId)?.name || 'Player'}
-          isVisible={true}
-        />
-      </>
-    );
-  }
+      );
+    }
 
-  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  const ownPlayer = gameState.players.find(p => p.id === playerId);
-  const isMyTurn = currentPlayer?.id === playerId;
+    // Main game interface
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    const ownPlayer = gameState.players.find(p => p.id === playerId);
+    const isMyTurn = currentPlayer?.id === playerId;
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Video Chat - now persists across all game states */}
-      <VideoChat
-        roomCode={roomCode}
-        playerName={ownPlayer?.name || 'Player'}
-        isVisible={true}
-      />
-      
-      <div className="w-full px-2 py-2 lg:px-4 lg:py-4">
-        {/* Header */}
-        <div className="text-center mb-3 relative">
-          <div className="absolute top-0 right-0">
-            <ThemeSwitcher />
-          </div>
-          <h1 className="text-xl lg:text-2xl font-bold mb-1">Kingdoms</h1>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-xs sm:text-sm">
-            <span className="text-muted-foreground">
-              Epoch {gameState.epoch} of 3
-            </span>
-            <span className="hidden sm:inline text-muted-foreground/50">•</span>
-            <span className="text-muted-foreground">
-              Room: {roomCode}
-            </span>
-            <span className="hidden sm:inline text-muted-foreground/50">•</span>
-            <span className="text-primary">
-              You are: {ownPlayer?.name}
-            </span>
-          </div>
-          
-          {/* Turn Status */}
-          <div className={`mt-2 p-2 lg:p-3 rounded-lg ${
-            isMyTurn 
-              ? 'bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700' 
-              : 'bg-muted border border-border'
-          }`}>
-            {isMyTurn ? (
-              <div className="text-green-800 dark:text-green-300 font-semibold text-sm lg:text-base">
-                🎯 It's YOUR turn! Make your move.
-              </div>
-            ) : (
-              <div className="text-foreground text-sm lg:text-base">
-                ⏳ Waiting for <span className="font-semibold">{currentPlayer?.name}</span>'s turn
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Mobile Layout (< lg screens) - Single Column */}
-        <div className="lg:hidden space-y-4">
-          {/* Game Actions - First on mobile for easy access */}
-          <GameActions
-            gameState={gameState}
-            currentPlayer={currentPlayer}
-            onDrawTile={drawAndPlaceTile}
-            onPass={passTurn}
-            onAbandonGame={handleAbandonGame}
-            onEndGame={handleEndGame}
-            selectedCastle={selectedCastle}
-            selectedTile={selectedTile}
-            hasSelectedStartingTile={hasSelectedStartingTile}
-            playerId={playerId}
-          />
-
-          {/* Game Board */}
-          <div className="w-full">
-            <GameBoard
-              gameState={gameState}
-              onCellClick={handleCellClick}
-              selectedCastle={selectedCastle}
-              selectedTile={selectedTile}
-            />
-          </div>
-
-          {/* Players - Vertical stack on mobile */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-center">Players</h3>
-            <div className="space-y-3">
-              {gameState.players.map(player => (
-                <PlayerPanel
-                  key={player.id}
-                  player={player}
-                  isCurrentPlayer={player.id === currentPlayer.id}
-                  isOwnPlayer={player.id === playerId}
-                  onCastleSelect={setSelectedCastle}
-                  onStartingTileSelect={selectStartingTile}
-                  selectedCastle={selectedCastle}
-                  hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
-                  selectedTile={selectedTile}
-                />
-              ))}
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="w-full px-2 py-2 lg:px-4 lg:py-4">
+          {/* Header */}
+          <div className="text-center mb-3 relative">
+            <div className="absolute top-0 right-0">
+              <ThemeSwitcher />
             </div>
-          </div>
-
-          {/* Scores and Game Log */}
-          <div className="grid grid-cols-1 gap-4">
-            <ScoreDisplay gameState={gameState} />
-            <GameLog gameState={gameState} />
-          </div>
-        </div>
-
-        {/* Desktop Layout (>= lg screens) - Three Columns */}
-        <div className="hidden lg:grid lg:grid-cols-12 gap-4 h-[calc(100vh-200px)]">
-          {/* Left Column - Players and Game Log */}
-          <div className="col-span-3 space-y-3 overflow-y-auto">
-            {/* Players */}
-            <div className="space-y-2">
-              {gameState.players.map(player => (
-                <PlayerPanel
-                  key={player.id}
-                  player={player}
-                  isCurrentPlayer={player.id === currentPlayer.id}
-                  isOwnPlayer={player.id === playerId}
-                  onCastleSelect={setSelectedCastle}
-                  onStartingTileSelect={selectStartingTile}
-                  selectedCastle={selectedCastle}
-                  hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
-                  selectedTile={selectedTile}
-                />
-              ))}
+            <h1 className="text-xl lg:text-2xl font-bold mb-1">Kingdoms</h1>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-xs sm:text-sm">
+              <span className="text-muted-foreground">
+                Epoch {gameState.epoch} of 3
+              </span>
+              <span className="hidden sm:inline text-muted-foreground/50">•</span>
+              <span className="text-muted-foreground">
+                Room: {roomCode}
+              </span>
+              <span className="hidden sm:inline text-muted-foreground/50">•</span>
+              <span className="text-primary">
+                You are: {ownPlayer?.name}
+              </span>
             </div>
             
-            {/* Game Log below players */}
-            <GameLog gameState={gameState} />
-          </div>
-
-          {/* Center Column - Game Board */}
-          <div className="col-span-6 flex items-center justify-center">
-            <div className="w-full max-w-3xl">
-              <GameBoard
-                gameState={gameState}
-                onCellClick={handleCellClick}
-                selectedCastle={selectedCastle}
-                selectedTile={selectedTile}
-              />
+            {/* Turn Status */}
+            <div className={`mt-2 p-2 lg:p-3 rounded-lg ${
+              isMyTurn 
+                ? 'bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700' 
+                : 'bg-muted border border-border'
+            }`}>
+              {isMyTurn ? (
+                <div className="text-green-800 dark:text-green-300 font-semibold text-sm lg:text-base">
+                  🎯 It's YOUR turn! Make your move.
+                </div>
+              ) : (
+                <div className="text-foreground text-sm lg:text-base">
+                  ⏳ Waiting for <span className="font-semibold">{currentPlayer?.name}</span>'s turn
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Right Column - Actions and Scores */}
-          <div className="col-span-3 space-y-3 overflow-y-auto">
+          {/* Mobile Layout (< lg screens) - Single Column */}
+          <div className="lg:hidden space-y-4">
+            {/* Game Actions - First on mobile for easy access */}
             <GameActions
               gameState={gameState}
               currentPlayer={currentPlayer}
@@ -536,11 +427,117 @@ const Index = () => {
               hasSelectedStartingTile={hasSelectedStartingTile}
               playerId={playerId}
             />
-            <ScoreDisplay gameState={gameState} />
+
+            {/* Game Board */}
+            <div className="w-full">
+              <GameBoard
+                gameState={gameState}
+                onCellClick={handleCellClick}
+                selectedCastle={selectedCastle}
+                selectedTile={selectedTile}
+              />
+            </div>
+
+            {/* Players - Vertical stack on mobile */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-center">Players</h3>
+              <div className="space-y-3">
+                {gameState.players.map(player => (
+                  <PlayerPanel
+                    key={player.id}
+                    player={player}
+                    isCurrentPlayer={player.id === currentPlayer.id}
+                    isOwnPlayer={player.id === playerId}
+                    onCastleSelect={setSelectedCastle}
+                    onStartingTileSelect={selectStartingTile}
+                    selectedCastle={selectedCastle}
+                    hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
+                    selectedTile={selectedTile}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Scores and Game Log */}
+            <div className="grid grid-cols-1 gap-4">
+              <ScoreDisplay gameState={gameState} />
+              <GameLog gameState={gameState} />
+            </div>
+          </div>
+
+          {/* Desktop Layout (>= lg screens) - Three Columns */}
+          <div className="hidden lg:grid lg:grid-cols-12 gap-4 h-[calc(100vh-200px)]">
+            {/* Left Column - Players and Game Log */}
+            <div className="col-span-3 space-y-3 overflow-y-auto">
+              {/* Players */}
+              <div className="space-y-2">
+                {gameState.players.map(player => (
+                  <PlayerPanel
+                    key={player.id}
+                    player={player}
+                    isCurrentPlayer={player.id === currentPlayer.id}
+                    isOwnPlayer={player.id === playerId}
+                    onCastleSelect={setSelectedCastle}
+                    onStartingTileSelect={selectStartingTile}
+                    selectedCastle={selectedCastle}
+                    hasSelectedStartingTile={hasSelectedStartingTile && player.id === playerId}
+                    selectedTile={selectedTile}
+                  />
+                ))}
+              </div>
+              
+              {/* Game Log below players */}
+              <GameLog gameState={gameState} />
+            </div>
+
+            {/* Center Column - Game Board */}
+            <div className="col-span-6 flex items-center justify-center">
+              <div className="w-full max-w-3xl">
+                <GameBoard
+                  gameState={gameState}
+                  onCellClick={handleCellClick}
+                  selectedCastle={selectedCastle}
+                  selectedTile={selectedTile}
+                />
+              </div>
+            </div>
+
+            {/* Right Column - Actions and Scores */}
+            <div className="col-span-3 space-y-3 overflow-y-auto">
+              <GameActions
+                gameState={gameState}
+                currentPlayer={currentPlayer}
+                onDrawTile={drawAndPlaceTile}
+                onPass={passTurn}
+                onAbandonGame={handleAbandonGame}
+                onEndGame={handleEndGame}
+                selectedCastle={selectedCastle}
+                selectedTile={selectedTile}
+                hasSelectedStartingTile={hasSelectedStartingTile}
+                playerId={playerId}
+              />
+              <ScoreDisplay gameState={gameState} />
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    );
+  };
+
+  return (
+    <>
+      {/* Main content */}
+      {renderMainContent()}
+      
+      {/* Video Chat - ALWAYS at top level, never unmounted */}
+      {shouldShowVideoChat && (
+        <VideoChat
+          roomCode={roomCode}
+          playerName={playerName}
+          isVisible={true}
+        />
+      )}
+    </>
   );
 };
 
