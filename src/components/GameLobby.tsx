@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Copy, Users, Crown, Check, X, Wifi, RefreshCw } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Copy, Users, Crown, Check, X, Wifi, RefreshCw, Shuffle } from 'lucide-react';
 import { Room } from '@/types/room';
-import { getRoom, setPlayerReady, startGame, leaveRoom, subscribeToRoom, getGameState } from '@/utils/supabaseRoomManager';
+import { getRoom, setPlayerReady, startGame, leaveRoom, subscribeToRoom, getGameState, updateRoomVariant } from '@/utils/supabaseRoomManager';
 import { saveGameSession, updateSessionState } from '@/utils/sessionManager';
 import { toast } from 'sonner';
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
@@ -26,6 +28,8 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
+  const [useVariant, setUseVariant] = useState(false);
+  const [isUpdatingVariant, setIsUpdatingVariant] = useState(false);
 
   const refreshRoom = useCallback(async () => {
     try {
@@ -35,6 +39,9 @@ const GameLobby: React.FC<GameLobbyProps> = ({
       if (currentRoom) {
         setRoom(currentRoom);
         setLastUpdate(Date.now());
+        
+        // Update variant checkbox based on room data
+        setUseVariant(currentRoom.variant === 'tile-swap');
         
         // Update session with room data
         const playerInRoom = currentRoom.players.find(p => p.id === playerId);
@@ -77,6 +84,9 @@ const GameLobby: React.FC<GameLobbyProps> = ({
           setRoom(currentRoom);
           setLastUpdate(Date.now());
           
+          // Set variant checkbox based on room data
+          setUseVariant(currentRoom.variant === 'tile-swap');
+          
           // Save session data
           const playerInRoom = currentRoom.players.find(p => p.id === playerId);
           if (playerInRoom) {
@@ -113,6 +123,11 @@ const GameLobby: React.FC<GameLobbyProps> = ({
       if (updatedRoom) {
         setRoom(updatedRoom);
         setLastUpdate(Date.now());
+        
+        // Update variant checkbox - but only if we're not currently updating it
+        if (!isUpdatingVariant) {
+          setUseVariant(updatedRoom.variant === 'tile-swap');
+        }
         
         // Update session data
         const playerInRoom = updatedRoom.players.find(p => p.id === playerId);
@@ -153,7 +168,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
       clearInterval(connectionInterval);
       clearInterval(autoRefreshInterval);
     };
-  }, [roomCode, playerId, onGameStart, refreshRoom]);
+  }, [roomCode, playerId, onGameStart, refreshRoom, isUpdatingVariant]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(roomCode);
@@ -187,18 +202,61 @@ const GameLobby: React.FC<GameLobbyProps> = ({
     }
   };
 
+  const handleVariantChange = async (checked: boolean) => {
+    if (!room) return;
+    
+    const currentPlayer = room.players.find(p => p.id === playerId);
+    if (!currentPlayer?.isHost) {
+      toast.error('Only the host can change game variant');
+      return;
+    }
+
+    console.log('=== VARIANT CHANGE REQUESTED ===');
+    console.log('Checked:', checked);
+    console.log('Current variant:', room.variant);
+
+    setIsUpdatingVariant(true);
+    setUseVariant(checked); // Update UI immediately
+
+    try {
+      const newVariant = checked ? 'tile-swap' : 'classic';
+      console.log('Updating room variant to:', newVariant);
+      
+      await updateRoomVariant(roomCode, playerId, newVariant);
+      
+      console.log('=== VARIANT UPDATE SUCCESS ===');
+      toast.success(checked ? 'Tile Swap Variant enabled!' : 'Classic mode selected');
+      
+      // Force refresh to get updated room data
+      setTimeout(refreshRoom, 500);
+    } catch (error) {
+      console.error('=== VARIANT UPDATE FAILED ===');
+      console.error('Error:', error);
+      
+      // Revert the checkbox on error
+      setUseVariant(!checked);
+      toast.error('Failed to update game variant');
+    } finally {
+      // Clear the updating flag after a delay to allow subscription to update
+      setTimeout(() => {
+        setIsUpdatingVariant(false);
+      }, 2000);
+    }
+  };
+
   const handleStartGame = async () => {
     if (isLoading || !room) return;
     
-    console.log('Starting game...', { hostId: playerId, roomCode, roomStatus: room.status });
+    console.log('Starting game...', { hostId: playerId, roomCode, roomStatus: room.status, variant: useVariant ? 'tile-swap' : 'classic' });
     
     setIsLoading(true);
     try {
-      const updatedRoom = await startGame(playerId, roomCode);
+      // Pass variant information to startGame
+      const updatedRoom = await startGame(playerId, roomCode, useVariant ? 'tile-swap' : 'classic');
       console.log('Start game result:', updatedRoom);
       
       if (updatedRoom) {
-        toast.success('Game starting!');
+        toast.success(`Game starting! ${useVariant ? '(Tile Swap Variant)' : '(Classic Mode)'}`);
         setRoom(updatedRoom);
         
         // Get the game state that was just created
@@ -295,6 +353,71 @@ const GameLobby: React.FC<GameLobbyProps> = ({
           </CardHeader>
           
           <CardContent className="space-y-6">
+            {/* Game Variant Selection - Only for Host */}
+            {isHost && (
+              <div className="bg-muted/50 p-4 rounded-lg border border-border">
+                <div className="flex items-center gap-3 mb-3">
+                  <Shuffle className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold">Game Variant</h3>
+                  {isUpdatingVariant && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                  )}
+                </div>
+                
+                <div className="flex items-center space-x-3">
+                  <Checkbox
+                    id="variant-checkbox"
+                    checked={useVariant}
+                    onCheckedChange={handleVariantChange}
+                    disabled={isLoading || isUpdatingVariant}
+                  />
+                  <Label htmlFor="variant-checkbox" className="text-sm font-medium cursor-pointer">
+                    Enable Tile Swap Variant
+                  </Label>
+                </div>
+                
+                <div className="mt-3 text-xs text-muted-foreground">
+                  {useVariant ? (
+                    <div className="space-y-1">
+                      <div className="font-semibold text-primary">🔄 Tile Swap Variant Active</div>
+                      <div>• When you draw a tile, you can choose to swap it with your starting tile</div>
+                      <div>• The drawn tile becomes your new starting tile</div>
+                      <div>• You then place the previous starting tile</div>
+                      <div>• This adds strategic depth to tile management!</div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="font-semibold">📋 Classic Mode</div>
+                      <div>• Standard rules: drawn tiles must be placed immediately</div>
+                      <div>• Starting tiles are played separately</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Show variant status for non-hosts */}
+            {!isHost && (
+              <div className="bg-muted/30 p-3 rounded-lg border border-border">
+                <div className="flex items-center gap-2 text-sm">
+                  <Shuffle className="h-4 w-4" />
+                  <span className="font-medium">
+                    Game Mode: {useVariant ? 'Tile Swap Variant' : 'Classic'}
+                  </span>
+                  {useVariant && (
+                    <Badge variant="secondary" className="text-xs">
+                      🔄 Variant
+                    </Badge>
+                  )}
+                </div>
+                {useVariant && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    You can swap drawn tiles with your starting tile
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Players List */}
             <div>
               <div className="flex items-center gap-2 mb-4">

@@ -6,6 +6,7 @@ export interface Room {
   maxPlayers: number;
   status: 'waiting' | 'ready' | 'playing' | 'finished';
   createdAt: Date;
+  variant?: 'classic' | 'tile-swap'; // Add variant option
 }
 
 export interface RoomPlayer {

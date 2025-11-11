@@ -37,6 +37,7 @@ const Index = () => {
     completedEpoch,
     setSelectedCastle,
     drawAndPlaceTile,
+    swapTiles, // Get the new swapTiles function
     handleCellClick,
     selectStartingTile,
     passTurn,
@@ -352,6 +353,14 @@ const Index = () => {
                   </div>
                 ))}
             </div>
+            
+            {/* Show game variant in final screen */}
+            {gameState.variant === 'tile-swap' && (
+              <div className="mb-4 text-sm text-muted-foreground bg-muted p-2 rounded">
+                🔄 Played with Tile Swap Variant
+              </div>
+            )}
+            
             <button
               onClick={() => {
                 clearGameSession();
@@ -392,6 +401,14 @@ const Index = () => {
               <span className="text-primary">
                 You are: {ownPlayer?.name}
               </span>
+              {gameState.variant === 'tile-swap' && (
+                <>
+                  <span className="hidden sm:inline text-muted-foreground/50">•</span>
+                  <span className="text-purple-600 dark:text-purple-400 text-xs bg-purple-100 dark:bg-purple-900/30 px-2 py-1 rounded-full">
+                    🔄 Tile Swap Variant
+                  </span>
+                </>
+              )}
             </div>
             
             {/* Turn Status */}
@@ -422,6 +439,7 @@ const Index = () => {
               onPass={passTurn}
               onAbandonGame={handleAbandonGame}
               onEndGame={handleEndGame}
+              onSwapTiles={swapTiles} // Pass the swapTiles function
               selectedCastle={selectedCastle}
               selectedTile={selectedTile}
               hasSelectedStartingTile={hasSelectedStartingTile}
@@ -511,6 +529,7 @@ const Index = () => {
                 onPass={passTurn}
                 onAbandonGame={handleAbandonGame}
                 onEndGame={handleEndGame}
+                onSwapTiles={swapTiles} // Pass the swapTiles function
                 selectedCastle={selectedCastle}
                 selectedTile={selectedTile}
                 hasSelectedStartingTile={hasSelectedStartingTile}

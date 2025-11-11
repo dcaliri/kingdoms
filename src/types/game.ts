@@ -46,10 +46,11 @@ export interface GameState {
   winner?: Player;
   scores: { [playerId: string]: number[] }; // scores per epoch
   gameLog: LogEntry[]; // Add game log to track all actions
+  variant?: 'classic' | 'tile-swap'; // Add variant to game state
 }
 
 export interface GameAction {
-  type: 'PLACE_CASTLE' | 'DRAW_AND_PLACE_TILE' | 'PLACE_STARTING_TILE' | 'PASS';
+  type: 'PLACE_CASTLE' | 'DRAW_AND_PLACE_TILE' | 'PLACE_STARTING_TILE' | 'PASS' | 'SWAP_TILES';
   playerId: string;
   castle?: Castle;
   tile?: Tile;

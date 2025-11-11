@@ -56,7 +56,8 @@ export const createRoom = async (hostName: string): Promise<{ room: Room; player
       }],
       maxPlayers: roomData.max_players,
       status: roomData.status as 'waiting' | 'ready' | 'playing' | 'finished',
-      createdAt: new Date(roomData.created_at)
+      createdAt: new Date(roomData.created_at),
+      variant: 'classic' // Default to classic
     };
 
     return { room, playerId };
@@ -160,7 +161,8 @@ export const getRoom = async (roomCode: string): Promise<Room | null> => {
       players,
       maxPlayers: roomData.max_players,
       status: roomData.status as 'waiting' | 'ready' | 'playing' | 'finished',
-      createdAt: new Date(roomData.created_at)
+      createdAt: new Date(roomData.created_at),
+      variant: (roomData.variant as 'classic' | 'tile-swap') || 'classic'
     };
   } catch (error) {
     console.error('Error getting room:', error);
@@ -240,6 +242,52 @@ export const setPlayerReady = async (playerId: string, roomCode: string, isReady
   }
 };
 
+// New function to update room variant
+export const updateRoomVariant = async (roomCode: string, hostId: string, variant: 'classic' | 'tile-swap'): Promise<void> => {
+  try {
+    console.log('=== UPDATING ROOM VARIANT ===');
+    console.log('Room code:', roomCode);
+    console.log('Host ID:', hostId);
+    console.log('Variant:', variant);
+    
+    // Get room first to verify host
+    const { data: roomData, error: roomError } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('code', roomCode.toUpperCase())
+      .single();
+
+    if (roomError || !roomData) {
+      console.error('Room not found:', roomError);
+      throw new Error('Room not found');
+    }
+
+    // Verify the player is the host
+    if (roomData.host_id !== hostId) {
+      console.error('Player is not host:', { hostId, actualHostId: roomData.host_id });
+      throw new Error('Only host can change variant');
+    }
+
+    // Update the room variant
+    const { data: updateData, error: updateError } = await supabase
+      .from('rooms')
+      .update({ variant: variant })
+      .eq('id', roomData.id)
+      .select();
+
+    if (updateError) {
+      console.error('Error updating room variant:', updateError);
+      throw updateError;
+    }
+
+    console.log('=== ROOM VARIANT UPDATED SUCCESSFULLY ===');
+    console.log('Updated data:', updateData);
+  } catch (error) {
+    console.error('Error in updateRoomVariant:', error);
+    throw error;
+  }
+};
+
 const createGameStateFromRoom = (room: Room): GameState => {
   console.log('Creating game state from room:', room);
   
@@ -270,18 +318,21 @@ const createGameStateFromRoom = (room: Room): GameState => {
     board: Array(BOARD_ROWS).fill(null).map(() => Array(BOARD_COLS).fill(null)),
     tileSupply: tiles,
     gamePhase: 'playing',
-    scores: {}
+    scores: {},
+    gameLog: [],
+    variant: room.variant || 'classic' // Include variant in game state
   };
 
   console.log('Game state created:', gameState);
   return gameState;
 };
 
-export const startGame = async (hostId: string, roomCode: string): Promise<Room | null> => {
+export const startGame = async (hostId: string, roomCode: string, variant: 'classic' | 'tile-swap' = 'classic'): Promise<Room | null> => {
   try {
     console.log('=== STARTING GAME ===');
     console.log('Host ID:', hostId);
     console.log('Room Code:', roomCode);
+    console.log('Variant:', variant);
     
     const { data: roomData, error: roomError } = await supabase
       .from('rooms')
@@ -298,6 +349,17 @@ export const startGame = async (hostId: string, roomCode: string): Promise<Room 
     if (roomData.status !== 'ready') {
       throw new Error('Not all players are ready');
     }
+
+    // Update room with variant and status
+    const { error: roomUpdateError } = await supabase
+      .from('rooms')
+      .update({ 
+        status: 'playing',
+        variant: variant
+      })
+      .eq('id', roomData.id);
+
+    if (roomUpdateError) throw roomUpdateError;
 
     // Get current room with players
     const room = await getRoom(roomCode);
@@ -325,15 +387,7 @@ export const startGame = async (hostId: string, roomCode: string): Promise<Room 
       }
     }
 
-    // Update room status to playing
-    const { error: statusError } = await supabase
-      .from('rooms')
-      .update({ status: 'playing' })
-      .eq('id', roomData.id);
-
-    if (statusError) throw statusError;
-
-    // Get updated room with colors
+    // Get updated room with colors and variant
     const updatedRoom = await getRoom(roomCode);
     if (!updatedRoom) throw new Error('Failed to get updated room');
 
@@ -357,7 +411,7 @@ export const startGame = async (hostId: string, roomCode: string): Promise<Room 
       throw gameError;
     }
 
-    console.log('Game started successfully!');
+    console.log('Game started successfully with variant:', variant);
     return updatedRoom;
   } catch (error) {
     console.error('Error starting game:', error);
