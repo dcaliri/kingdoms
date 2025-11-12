@@ -18,6 +18,7 @@ interface GameActionsProps {
   selectedCastle?: any;
   selectedTile?: Tile;
   hasSelectedStartingTile: boolean;
+  isSwapping?: boolean; // Track if swap is in progress to prevent race conditions
   playerId: string;
 }
 
@@ -32,6 +33,7 @@ const GameActions: React.FC<GameActionsProps> = ({
   selectedCastle,
   selectedTile,
   hasSelectedStartingTile,
+  isSwapping = false, // Default to false if not provided
   playerId
 }) => {
   const canAct = canPlayerAct(currentPlayer, gameState);
@@ -44,8 +46,8 @@ const GameActions: React.FC<GameActionsProps> = ({
   // Check if tile swap variant is active
   const isTileSwapVariant = gameState.variant === 'tile-swap';
   
-  // Check if player can swap tiles (has both drawn tile and starting tile)
-  const canSwapTiles = isTileSwapVariant && selectedTile && currentPlayer.startingTile && isMyTurn;
+  // Check if player can swap tiles (has both drawn tile and starting tile, and not already swapping)
+  const canSwapTiles = isTileSwapVariant && selectedTile && currentPlayer.startingTile && isMyTurn && !isSwapping;
 
   // Determine if tile drawing should be disabled
   const canDrawTile = hasTilesInSupply && hasEmptySpaces && !selectedTile && isMyTurn;
@@ -81,14 +83,15 @@ const GameActions: React.FC<GameActionsProps> = ({
         </Button>
 
         {/* Tile Swap Action - Only show in tile swap variant */}
-        {isTileSwapVariant && canSwapTiles && onSwapTiles && (
+        {isTileSwapVariant && selectedTile && currentPlayer.startingTile && isMyTurn && onSwapTiles && (
           <Button
             onClick={onSwapTiles}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+            disabled={isSwapping}
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
             variant="default"
           >
             <Shuffle className="h-4 w-4 mr-2" />
-            Swap with Starting Tile
+            {isSwapping ? 'Swapping...' : 'Swap with Starting Tile'}
           </Button>
         )}
 

@@ -35,6 +35,7 @@ const Index = () => {
     showEpochScores,
     epochScores,
     completedEpoch,
+    isSwapping, // Get swapping state to prevent race conditions
     setSelectedCastle,
     drawAndPlaceTile,
     swapTiles, // Get the new swapTiles function
@@ -443,6 +444,7 @@ const Index = () => {
               selectedCastle={selectedCastle}
               selectedTile={selectedTile}
               hasSelectedStartingTile={hasSelectedStartingTile}
+              isSwapping={isSwapping} // Pass swapping state to disable button during swap
               playerId={playerId}
             />
 
@@ -533,6 +535,7 @@ const Index = () => {
                 selectedCastle={selectedCastle}
                 selectedTile={selectedTile}
                 hasSelectedStartingTile={hasSelectedStartingTile}
+                isSwapping={isSwapping} // Pass swapping state to disable button during swap
                 playerId={playerId}
               />
               <ScoreDisplay gameState={gameState} />

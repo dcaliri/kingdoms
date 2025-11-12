@@ -17,6 +17,7 @@ export const useGamePlay = (
   const [showEpochScores, setShowEpochScores] = useState(false);
   const [epochScores, setEpochScores] = useState<{ [playerId: string]: number }>({});
   const [completedEpoch, setCompletedEpoch] = useState<number>(0);
+  const [isSwapping, setIsSwapping] = useState(false); // Track if swap is in progress
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateRef = useRef<number>(Date.now());
   const epochEndProcessedRef = useRef<string>(''); // Track processed epochs to avoid duplicates
@@ -594,6 +595,12 @@ export const useGamePlay = (
 
   // New function for tile swapping
   const swapTiles = useCallback(async () => {
+    // Prevent multiple simultaneous swaps (race condition fix)
+    if (isSwapping) {
+      console.log('=== SWAP ALREADY IN PROGRESS - IGNORING ===');
+      return;
+    }
+
     if (!gameState || !selectedTile) {
       toast.error('No tile to swap');
       return;
@@ -605,49 +612,57 @@ export const useGamePlay = (
       return;
     }
 
-    console.log('=== SWAPPING TILES ===');
-    console.log('Current player:', currentPlayer.name);
-    console.log('Selected tile:', selectedTile);
-    console.log('Starting tile:', currentPlayer.startingTile);
+    // Set swapping flag to prevent race conditions
+    setIsSwapping(true);
 
-    // Swap the tiles
-    const newStartingTile = selectedTile;
-    const newSelectedTile = currentPlayer.startingTile;
+    try {
+      console.log('=== SWAPPING TILES ===');
+      console.log('Current player:', currentPlayer.name);
+      console.log('Selected tile:', selectedTile);
+      console.log('Starting tile:', currentPlayer.startingTile);
 
-    // Update player's starting tile
-    const updatedPlayers = gameState.players.map(player => {
-      if (player.id === currentPlayer.id) {
-        return {
-          ...player,
-          startingTile: newStartingTile
-        };
-      }
-      return player;
-    });
+      // Swap the tiles
+      const newStartingTile = selectedTile;
+      const newSelectedTile = currentPlayer.startingTile;
 
-    // Create log entry for tile swap
-    const logEntry = createLogEntry(
-      currentPlayer.id,
-      currentPlayer.name,
-      currentPlayer.color,
-      `swapped drawn tile with starting tile`,
-      gameState.epoch
-    );
+      // Update player's starting tile
+      const updatedPlayers = gameState.players.map(player => {
+        if (player.id === currentPlayer.id) {
+          return {
+            ...player,
+            startingTile: newStartingTile
+          };
+        }
+        return player;
+      });
 
-    const newGameState = {
-      ...gameState,
-      players: updatedPlayers,
-      gameLog: [...(gameState.gameLog || []), logEntry]
-    };
+      // Create log entry for tile swap
+      const logEntry = createLogEntry(
+        currentPlayer.id,
+        currentPlayer.name,
+        currentPlayer.color,
+        `swapped drawn tile with starting tile`,
+        gameState.epoch
+      );
 
-    console.log('=== TILES SWAPPED ===');
-    console.log('New starting tile:', newStartingTile);
-    console.log('New selected tile:', newSelectedTile);
+      const newGameState = {
+        ...gameState,
+        players: updatedPlayers,
+        gameLog: [...(gameState.gameLog || []), logEntry]
+      };
 
-    await saveGameState(newGameState);
-    setSelectedTile(newSelectedTile);
-    toast.success('Tiles swapped! Now place the tile.');
-  }, [gameState, playerId, selectedTile, saveGameState, createLogEntry]);
+      console.log('=== TILES SWAPPED ===');
+      console.log('New starting tile:', newStartingTile);
+      console.log('New selected tile:', newSelectedTile);
+
+      await saveGameState(newGameState);
+      setSelectedTile(newSelectedTile);
+      toast.success('Tiles swapped! Now place the tile.');
+    } finally {
+      // Always reset the swapping flag, even if there's an error
+      setIsSwapping(false);
+    }
+  }, [gameState, playerId, selectedTile, saveGameState, createLogEntry, isSwapping]);
 
   const placeTile = useCallback(async (tile: Tile, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
@@ -1025,6 +1040,7 @@ export const useGamePlay = (
     showEpochScores,
     epochScores,
     completedEpoch,
+    isSwapping, // Expose swapping state to prevent race conditions
     setSelectedCastle: handleCastleSelect, // Use the enhanced version
     drawAndPlaceTile,
     swapTiles, // New function for tile swapping
