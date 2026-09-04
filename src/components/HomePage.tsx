@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,26 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
   const [playerName, setPlayerName] = useState(user?.user_metadata?.name || '');
   const [roomCode, setRoomCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const mainCardRef = useRef<HTMLDivElement>(null);
+  const [matchHeight, setMatchHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const updateMatchHeight = () => {
+      const height = mainCardRef.current?.offsetHeight;
+      if (height && height > 0) {
+        setMatchHeight(height);
+      }
+    };
+
+    // Measure after the auth state settles and when its content changes
+    const frame = requestAnimationFrame(updateMatchHeight);
+    window.addEventListener('resize', updateMatchHeight);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', updateMatchHeight);
+    };
+  }, [authLoading, user, mode]);
 
   useEffect(() => {
     if (user?.user_metadata?.name && !playerName) {
@@ -194,7 +214,8 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
       <div className="absolute top-4 right-4">
         <ThemeSwitcher />
       </div>
-      <Card className="w-full max-w-md">
+      <div className="w-full max-w-md grid grid-cols-1 items-start gap-8">
+      <Card ref={mainCardRef} className="w-full">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold mb-2">Kingdoms</CardTitle>
           <p className="text-gray-600">Strategic tile placement game</p>
@@ -296,8 +317,12 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
         </CardContent>
       </Card>
 
-      <div className="mt-6 w-full max-w-md">
+      <div
+        className="w-full"
+        style={matchHeight ? { height: matchHeight } : undefined}
+      >
         <Leaderboard limit={10} compact />
+      </div>
       </div>
     </div>
   );

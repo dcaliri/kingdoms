@@ -43,12 +43,12 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ limit = 10, compact = false }
   }, [limit]);
 
   return (
-    <Card className={cn("w-full", compact && "shadow-sm")}>
+    <Card className={cn("w-full h-full flex flex-col", compact && "shadow-sm")}>
       <CardHeader className={cn("flex flex-row items-center gap-2", compact && "py-3 px-4")}>
         <Trophy className="h-5 w-5 text-yellow-500" />
         <CardTitle className={cn("text-lg", compact && "text-base")}>Leaderboard</CardTitle>
       </CardHeader>
-      <CardContent className={cn(compact && "px-4 pb-4 pt-0")}>
+      <CardContent className={cn("flex-1 min-h-0 overflow-y-auto", compact && "px-4 pb-4 pt-0")}>
         {error && (
           <p className="text-sm text-muted-foreground py-4 text-center">
             Couldn't load the leaderboard right now.
@@ -70,8 +70,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ limit = 10, compact = false }
         )}
 
         {entries && entries.length > 0 && (
-          <div className="max-h-[420px] overflow-y-auto pr-1">
-            <div className="space-y-1.5">
+          <div className="space-y-1.5">
               {entries.map((entry, index) => {
                 const rank = index + 1;
                 const isMe = user?.id === entry.id;
@@ -119,7 +118,6 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ limit = 10, compact = false }
                 );
               })}
             </div>
-          </div>
         )}
       </CardContent>
     </Card>
