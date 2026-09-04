@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { GameState, Castle, Tile, LogEntry } from '@/types/game';
+import { GameState, Castle, Tile, LogEntry, Player } from '@/types/game';
 import { isValidPosition, calculateScore, canPlayerAct, createInitialTiles, shuffleArray, BOARD_ROWS, BOARD_COLS, createInitialCastles } from '@/utils/gameLogic';
 import { updateGameState, getGameState } from '@/utils/supabaseRoomManager';
+import { saveMatchResults, MatchResult } from '@/utils/leaderboardManager';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -35,6 +36,34 @@ export const useGamePlay = (
       epoch
     };
   }, []);
+
+  // Build the leaderboard results for a finished game (only authenticated players are recorded)
+  const buildMatchResults = useCallback((gs: GameState): MatchResult[] => {
+    const sorted = [...gs.players].sort((a, b) => b.gold - a.gold);
+    const placementByPlayer: { [id: string]: number } = {};
+    sorted.forEach((player, index) => {
+      placementByPlayer[player.id] = index + 1;
+    });
+
+    return gs.players.map((player: Player) => ({
+      playerId: player.id,
+      playerName: player.name,
+      goldFinal: player.gold,
+      placement: placementByPlayer[player.id],
+      epoch: gs.epoch,
+      variant: gs.variant || 'classic'
+    }));
+  }, []);
+
+  // Record a finished match on the leaderboard (fire-and-forget, never blocks the game)
+  const recordFinishedMatch = useCallback(async (gs: GameState) => {
+    if (!roomId) return;
+    try {
+      await saveMatchResults(roomId, buildMatchResults(gs));
+    } catch (error) {
+      console.error('Failed to record match results:', error);
+    }
+  }, [roomId, buildMatchResults]);
 
   // Define saveGameState first to avoid circular dependency
   const saveGameState = useCallback(async (newGameState: GameState) => {
@@ -396,6 +425,7 @@ export const useGamePlay = (
       console.log('Final game state:', finalGameState);
 
       await saveGameState(finalGameState);
+      await recordFinishedMatch(finalGameState);
       setShowEpochScores(false);
       toast.success(`Game Over! ${winner.name} wins with ${winner.gold} gold!`);
     } else {
@@ -480,7 +510,7 @@ export const useGamePlay = (
       
       toast.success(`Starting Epoch ${nextEpoch}! ${sortedPlayers[0].name} goes first!`);
     }
-  }, [gameState, saveGameState, createLogEntry]);
+  }, [gameState, saveGameState, createLogEntry, recordFinishedMatch]);
 
   const placeCastle = useCallback(async (castle: Castle, row: number, col: number) => {
     if (!gameState || !isValidPosition(row, col, gameState.board)) {
@@ -997,8 +1027,9 @@ export const useGamePlay = (
     console.log('Final game state:', finalGameState);
 
     await saveGameState(finalGameState);
+    await recordFinishedMatch(finalGameState);
     toast.success(`Game ended! ${winner.name} wins with ${winner.gold} gold!`);
-  }, [gameState, playerId, saveGameState, createLogEntry]);
+  }, [gameState, playerId, saveGameState, createLogEntry, recordFinishedMatch]);
 
   // Enhanced castle selection with undo functionality
   const handleCastleSelect = useCallback((castle: Castle) => {

@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Users, Plus, Wifi } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Users, Plus, Wifi, LogOut, Crown } from 'lucide-react';
 import { createRoom, joinRoom } from '@/utils/supabaseRoomManager';
+import { useAuth } from '@/hooks/useAuth';
+import Leaderboard from '@/components/Leaderboard';
 import { toast } from 'sonner';
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 
@@ -13,10 +16,27 @@ interface HomePageProps {
 }
 
 const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
+  const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth();
   const [mode, setMode] = useState<'home' | 'create' | 'join'>('home');
-  const [playerName, setPlayerName] = useState('');
+  const [playerName, setPlayerName] = useState(user?.user_metadata?.name || '');
   const [roomCode, setRoomCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (user?.user_metadata?.name && !playerName) {
+      setPlayerName(user.user_metadata.name as string);
+    }
+  }, [user, playerName]);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast.info('Signed out');
+    } catch (error) {
+      toast.error('Failed to sign out');
+      console.error('Sign out error:', error);
+    }
+  };
 
   const handleCreateRoom = async () => {
     if (!playerName.trim()) {
@@ -26,7 +46,7 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
 
     setIsLoading(true);
     try {
-      const { room, playerId } = await createRoom(playerName.trim());
+      const { room, playerId } = await createRoom(playerName.trim(), user?.id);
       toast.success(`Room created! Code: ${room.code}`);
       onRoomJoined(room.code, playerId);
     } catch (error) {
@@ -50,7 +70,7 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
 
     setIsLoading(true);
     try {
-      const result = await joinRoom(roomCode.trim(), playerName.trim());
+      const result = await joinRoom(roomCode.trim(), playerName.trim(), user?.id);
       if (result) {
         toast.success('Joined room successfully!');
         onRoomJoined(result.room.code, result.playerId);
@@ -170,7 +190,7 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4 relative">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
       <div className="absolute top-4 right-4">
         <ThemeSwitcher />
       </div>
@@ -185,6 +205,57 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
         </CardHeader>
         
         <CardContent className="space-y-4">
+          {authLoading ? (
+            <div className="text-center text-sm text-muted-foreground py-1">Loading...</div>
+          ) : user ? (
+            <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar className="h-9 w-9 shrink-0">
+                  <AvatarImage
+                    src={(user.user_metadata?.avatar_url as string) || (user.user_metadata?.picture as string) || undefined}
+                    alt={user.user_metadata?.name as string}
+                  />
+                  <AvatarFallback>
+                    <Crown className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm truncate">
+                    {(user.user_metadata?.name as string) || user.email}
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400">
+                    ✓ Playing as {user.email}
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4 mr-1" />
+                Log out
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+              <div className="text-left">
+                <p className="text-sm font-medium">Play anonymously</p>
+                <p className="text-xs text-muted-foreground">
+                  or log in to track your stats
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  signInWithGoogle().catch(err => {
+                    toast.error('Failed to sign in with Google');
+                    console.error('Google sign-in error:', err);
+                  });
+                }}
+              >
+                Continue with Google
+              </Button>
+            </div>
+          )}
+
           <Button 
             onClick={() => setMode('create')} 
             className="w-full h-12 text-lg"
@@ -224,6 +295,10 @@ const HomePage: React.FC<HomePageProps> = ({ onRoomJoined }) => {
           </div>
         </CardContent>
       </Card>
+
+      <div className="mt-6 w-full max-w-md">
+        <Leaderboard limit={10} compact />
+      </div>
     </div>
   );
 };

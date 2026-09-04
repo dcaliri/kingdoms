@@ -12,9 +12,9 @@ export const generatePlayerId = (): string => {
   return `player-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 };
 
-export const createRoom = async (hostName: string): Promise<{ room: Room; playerId: string }> => {
+export const createRoom = async (hostName: string, userId?: string): Promise<{ room: Room; playerId: string }> => {
   const roomCode = generateRoomCode();
-  const playerId = generatePlayerId();
+  const playerId = userId || generatePlayerId();
   
   try {
     // Create room
@@ -67,8 +67,8 @@ export const createRoom = async (hostName: string): Promise<{ room: Room; player
   }
 };
 
-export const joinRoom = async (roomCode: string, playerName: string): Promise<{ room: Room; playerId: string }> => {
-  const playerId = generatePlayerId();
+export const joinRoom = async (roomCode: string, playerName: string, userId?: string): Promise<{ room: Room; playerId: string }> => {
+  const playerId = userId || generatePlayerId();
   
   try {
     // Find room by code

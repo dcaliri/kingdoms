@@ -10,6 +10,8 @@ import ScoreDisplay from '@/components/ScoreDisplay';
 import GameLog from '@/components/GameLog';
 import EpochScoreScreen from '@/components/EpochScoreScreen';
 import VideoChat from '@/components/VideoChat';
+import MatchResult from '@/components/MatchResult';
+import Leaderboard from '@/components/Leaderboard';
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 import { useGamePlay } from '@/hooks/useGamePlay';
 import { supabase } from '@/integrations/supabase/client';
@@ -326,7 +328,7 @@ const Index = () => {
 
     if (gameState.gamePhase === 'finished') {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+        <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 relative">
           <div className="absolute top-4 right-4">
             <ThemeSwitcher />
           </div>
@@ -371,6 +373,11 @@ const Index = () => {
             >
               Play Again
             </button>
+          </div>
+
+          <div className="w-full max-w-md mt-4 space-y-4">
+            <MatchResult />
+            <Leaderboard limit={5} compact />
           </div>
         </div>
       );

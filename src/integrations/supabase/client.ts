@@ -101,6 +101,93 @@ export type Database = {
           updated_at?: string
         }
       }
+      profiles: {
+        Row: {
+          id: string
+          display_name: string
+          avatar_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          display_name: string
+          avatar_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          display_name?: string
+          avatar_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      match_history: {
+        Row: {
+          id: string
+          room_id: string | null
+          player_id: string
+          player_name: string
+          gold_final: number
+          placement: number | null
+          epoch: number | null
+          variant: string | null
+          played_at: string
+        }
+        Insert: {
+          id?: string
+          room_id?: string | null
+          player_id: string
+          player_name: string
+          gold_final?: number
+          placement?: number | null
+          epoch?: number | null
+          variant?: string | null
+          played_at?: string
+        }
+        Update: {
+          id?: string
+          room_id?: string | null
+          player_id?: string
+          player_name?: string
+          gold_final?: number
+          placement?: number | null
+          epoch?: number | null
+          variant?: string | null
+          played_at?: string
+        }
+      }
+      player_stats: {
+        Row: {
+          id: string
+          games_played: number
+          games_won: number
+          total_gold: number
+          current_streak: number
+          best_streak: number
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          games_played?: number
+          games_won?: number
+          total_gold?: number
+          current_streak?: number
+          best_streak?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          games_played?: number
+          games_won?: number
+          total_gold?: number
+          current_streak?: number
+          best_streak?: number
+          updated_at?: string
+        }
+      }
     }
   }
 }
